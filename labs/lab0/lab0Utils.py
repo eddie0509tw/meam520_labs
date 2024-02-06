@@ -13,7 +13,7 @@ def linear_solver(A, b):
     """
     x = np.linalg.solve(A, b)
 
-    return b
+    return x
 
 
 def angle_solver(v1, v2):
