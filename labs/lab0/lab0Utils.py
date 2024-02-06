@@ -35,7 +35,7 @@ def angle_solver(v1, v2):
     cosine_theta = dot_product / (magnitude_v1 * magnitude_v2)
     np.clip(cosine_theta, -1.0, 1.0)
     theta = np.arccos(cosine_theta)
-    return 0
+    return theta
 
 
 def linear_euler_integration(A, x0, dt, nSteps):
