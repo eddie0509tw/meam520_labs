@@ -9,7 +9,20 @@ class FK():
         # useful in computing the forward kinematics. The data you will need
         # is provided in the lab handout
 
-        pass
+        self.a = [0, 0, 0, 0.0825, 0.0825, 0, 0.088, 0]
+        self.alpha = [0, -pi/2, pi/2, -pi/2, -pi/2, pi/2, pi/2, 0]
+        self.d = [0.141, 0.192, 0, 0.316, 0, 0.384, 0, 0.21]
+        self.theta = None
+
+    def construct_theta(self, q):
+        return [0, q[0], q[1],  q[2], q[3]-pi/2, q[4]+pi, q[5]+pi/2, q[6]]
+
+    def build_DH(self, a, alpha, d, theta):
+        A = np.array([[np.cos(theta), -np.sin(theta) * np.cos(alpha), np.sin(theta) * np.sin(alpha), a * np.cos(theta)],
+                    [np.sin(theta), np.cos(theta) * np.cos(alpha), -np.cos(theta) * np.sin(alpha), a * np.sin(theta)],
+                    [0, np.sin(alpha), np.cos(alpha), d],
+                    [0, 0, 0, 1]])
+        return A
 
     def forward(self, q):
         """
@@ -31,12 +44,17 @@ class FK():
         T0e = np.identity(4)
 
         # Your code ends here
+        self.theta = self.construct_theta(q)
+        for i, (a, alpha, d, theta) in enumerate(zip(self.a, self.alpha, self.d, self.theta)):
+            A = self.build_DH(a, alpha, d, theta)
+            T0e = T0e @ A
+            jointPositions[i] = (T0e @ np.hstack((np.zeros((1,3)), np.array([[1]]))).T).T[0, :-1]
 
         return jointPositions, T0e
 
     # feel free to define additional helper methods to modularize your solution for lab 1
 
-    
+
     # This code is for Lab 2, you can ignore it ofr Lab 1
     def get_axis_of_rotation(self, q):
         """
@@ -51,7 +69,7 @@ class FK():
         # STUDENT CODE HERE: This is a function needed by lab 2
 
         return()
-    
+
     def compute_Ai(self, q):
         """
         INPUT:
@@ -64,7 +82,7 @@ class FK():
         # STUDENT CODE HERE: This is a function needed by lab 2
 
         return()
-    
+
 if __name__ == "__main__":
 
     fk = FK()
@@ -73,6 +91,6 @@ if __name__ == "__main__":
     q = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
 
     joint_positions, T0e = fk.forward(q)
-    
+
     print("Joint Positions:\n",joint_positions)
     print("End Effector Pose:\n",T0e)
