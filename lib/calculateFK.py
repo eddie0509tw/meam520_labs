@@ -9,13 +9,15 @@ class FK():
         # useful in computing the forward kinematics. The data you will need
         # is provided in the lab handout
 
+
         self.a = [0, 0, 0, 0.0825, 0.0825, 0, 0.088, 0]
-        self.alpha = [0, -pi/2, pi/2, -pi/2, -pi/2, pi/2, pi/2, 0]
+        self.alpha = [0, -pi/2, pi/2, pi/2, pi/2, -pi/2, pi/2, 0]
         self.d = [0.141, 0.192, 0, 0.316, 0, 0.384, 0, 0.21]
         self.theta = None
+        self.init_angle = np.array([ 0,  0,    0,     0, -pi/2,     0, pi/2, pi/4 ])
 
     def construct_theta(self, q):
-        return [0, q[0], q[1],  q[2], q[3]-pi/2, q[4]+pi, q[5]+pi/2, q[6]]
+        return [0, q[0], q[1],  q[2], q[3]+pi/2, q[4], q[5]-pi/2, q[6]]
 
     def build_DH(self, a, alpha, d, theta):
         A = np.array([[np.cos(theta), -np.sin(theta) * np.cos(alpha), np.sin(theta) * np.sin(alpha), a * np.cos(theta)],
@@ -40,15 +42,26 @@ class FK():
 
         # Your Lab 1 code starts here
 
-        jointPositions = np.zeros((8,3))
         T0e = np.identity(4)
-
+        jointPositions = np.zeros((8,3))
         # Your code ends here
-        self.theta = self.construct_theta(q)
+
+        # this is the offset wrt to that joint frame dn
+        offset = np.array([  [0.0, 0.0 ,0.0],
+                             [0.0, 0.0 ,0.0],
+                             [0.0, 0.0, 0.195],
+                             [0.0, 0.0, 0.0 ],
+                             [0.0, 0.0, 0.125],
+                             [0.0, 0.0, -0.015],
+                             [0.0, 0.0, 0.051],
+                             [0.0, 0.0, 0.0]])
+
+        self.theta = self.construct_theta(q) - self.init_angle
         for i, (a, alpha, d, theta) in enumerate(zip(self.a, self.alpha, self.d, self.theta)):
             A = self.build_DH(a, alpha, d, theta)
             T0e = T0e @ A
-            jointPositions[i] = (T0e @ np.hstack((np.zeros((1,3)), np.array([[1]]))).T).T[0, :-1]
+            R = T0e[:-1, :-1]
+            jointPositions[i] = T0e[:-1, -1] +  R @ offset[i]
 
         return jointPositions, T0e
 
