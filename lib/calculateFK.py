@@ -80,8 +80,24 @@ class FK():
 
         """
         # STUDENT CODE HERE: This is a function needed by lab 2
+        axis_of_rot = np.zeros((7,3))
+        axis_of_rot[0, 2] = 1
+        # Your code ends here
+        R_ = np.zeros((7,3,3))
+        T0e = np.identity(4)
 
-        return()
+        self.theta = self.construct_theta(q) - self.init_angle
+        for i, (a, alpha, d, theta) in enumerate(zip(self.a, self.alpha, self.d, self.theta)):
+            A = self.build_DH(a, alpha, d, theta)
+            T0e = T0e @ A
+            R = T0e[:-1, :-1]
+            if i >= 1:
+                R_[i-1] = R
+
+        for i in range(1, 7):
+            axis_of_rot[i] = R_[i-1] @ np.array([0, 0, 1])
+
+        return axis_of_rot.T
 
     def compute_Ai(self, q):
         """
@@ -102,7 +118,7 @@ if __name__ == "__main__":
 
     # matches figure in the handout
     q = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
-
+    #q = np.array([ 0,    0,     0, 0,  0, 0, 0 ])
     joint_positions, T0e = fk.forward(q)
 
     print("Joint Positions:\n",joint_positions)

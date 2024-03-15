@@ -13,9 +13,20 @@ def calcJacobian(q_in):
     J = np.zeros((6, 7))
 
     ## STUDENT CODE GOES HERE
+    fk = FK()
+    joint_positions, T0e = fk.forward(q_in)
+    axis_of_rot = fk.get_axis_of_rotation(q_in)
+
+    o_end =joint_positions[7]
+    for i in range(7):
+        z_ = axis_of_rot[: ,i]
+        J[:3, i]=np.cross(z_,(o_end-joint_positions[i]))
+
+
+    J[3: , :] = axis_of_rot
 
     return J
 
 if __name__ == '__main__':
-    q= np.array([0, 0, 0, -np.pi/2, 0, np.pi/2, np.pi/4])
+    q= np.array([0, 0, 0, 0, 0, np.pi, np.pi/4])
     print(np.round(calcJacobian(q),3))

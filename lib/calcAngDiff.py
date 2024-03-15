@@ -3,7 +3,7 @@ import numpy as np
 
 def calcAngDiff(R_des, R_curr):
     """
-    Helper function for the End Effector Orientation Task. Computes the axis of rotation 
+    Helper function for the End Effector Orientation Task. Computes the axis of rotation
     from the current orientation to the target orientation
 
     This data can also be interpreted as an end effector velocity which will
@@ -21,5 +21,9 @@ def calcAngDiff(R_des, R_curr):
     """
     omega = np.zeros(3)
     ## STUDENT CODE STARTS HERE
-
+    R_rel = R_curr.T @ R_des
+    S_rel = (R_rel - R_rel.T) / 2
+    a = np.array([S_rel[2,1], S_rel[0, 2], S_rel[0, 1]])
+    omega = R_rel @ a
+    
     return omega
