@@ -23,11 +23,16 @@ def calcAngDiff(R_des, R_curr):
     ## STUDENT CODE STARTS HERE
     R_rel = R_curr.T @ R_des
     S_rel = (R_rel - R_rel.T) / 2
-    a = np.array([S_rel[2,1], S_rel[0, 2], S_rel[0, 1]])
-    if np.linalg.norm(a) == 0:
-        eigenvalues, eigenvectors = np.linalg.eigh(R_rel)
-        a = eigenvectors[:, np.isclose(eigenvalues, 1)]
+    a = np.array([S_rel[2,1], S_rel[0, 2], S_rel[1, 0]])
+    #if np.linalg.norm(a) == 0:
+    #    eigenvalues, eigenvectors = np.linalg.eigh(R_rel)
+    #    a = eigenvectors[:, np.isclose(eigenvalues, 1)]
 
     omega = R_rel @ a
 
     return omega
+
+if __name__ == '__main__':
+        R_des = np.eye(3)
+        R_curr = np.eye(3)
+        print(calcAngDiff(R_des, R_curr))
