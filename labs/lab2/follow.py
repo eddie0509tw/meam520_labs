@@ -85,7 +85,7 @@ class JacobianDemo():
         Rdes = np.diag([1., -1., -1.])
         ang_vdes = 0.0 * np.array([1.0, 0.0, 0.0])
 
-        return Rdes, ang_vdes, xdes, vdes
+        return Rdes, ang_vdes, xdes, vdes*0.1
 
     def ellipse(t,f=0.5,ry=.15,rz=.10):
         """
@@ -104,14 +104,32 @@ class JacobianDemo():
         ang_vdes = 0x3 np array of target end effector orientation velocity in the rotation vector representation in the world frame
         """
 
-        x0 = np.array([0.307, 0, 0.487]) # corresponds to neutral position
 
         ## STUDENT CODE GOES HERE
+        x0 = np.array([0.307, 0, 0.487]) # corresponds to neutral position
+        ω = 2 * np.pi * f
+
+        # Position
+        y = ry * np.cos(ω * t)
+        z = rz * np.sin(ω * t)
+        xdes = x0 + np.array([0, y, z])
+        vy = -ry * ω * np.sin(ω * t)
+        vz = rz * ω * np.cos(ω * t)
+        vdes = np.array([0, vy, vz])
+        forward = np.array([0, vy, vz])
+        if np.linalg.norm(forward) > 0:
+            forward = forward / np.linalg.norm(forward)
+        up = np.array([1, 0, 0])  # Assume up vector
+        right = np.cross(up, forward)
+        if np.linalg.norm(right) > 0:
+            right = right / np.linalg.norm(right)
+        up = np.cross(forward, right)
+        Rdes = np.column_stack((right, forward, up))
 
         # TODO: replace these!
-        xdes = JacobianDemo.x0
-        vdes = np.array([0,0,0])
-        Rdes = np.diag([1., -1., -1.])
+        # xdes = JacobianDemo.x0
+        # vdes = np.array([0,0,0])
+        #Rdes = np.diag([1., -1., -1.])
         ang_vdes = 0.0 * np.array([1.0, 0.0, 0.0])
         ## END STUDENT CODE
         
@@ -135,19 +153,31 @@ class JacobianDemo():
         ## STUDENT CODE GOES HERE
         x0 = np.array([0.307,0,0.487]) #corresponds to neutral position
         # TODO: replace these!
-        xdes = JacobianDemo.x0
-        vdes = np.array([0,0,0])
+        T = 1 / f  # Period of the motion
+        fraction_of_cycle = (t % T) / T
+        y_position = L * np.sin(2 * np.pi * fraction_of_cycle)  # Sine wave motion
+        y_velocity = L * 2 * np.pi * f * np.cos(2 * np.pi * fraction_of_cycle)  # Derivative of position
+        xdes = x0 + np.array([0, y_position, 0])
+        vdes = np.array([0, y_velocity, 0])
 
-        # Example for generating an orientation trajectory
-        # The end effector will rotate around the x-axis during the line motion
-        # following the changing ang
-        ang = -np.pi + (np.pi/4.0) * sin(f*t)
+        # Angular orientation and velocity
+        ang = -np.pi + (np.pi / 4.0) * np.sin(f * t)
         r = ang * np.array([1.0, 0.0, 0.0])
         Rdes = rotvec_to_matrix(r)
+        # xdes = JacobianDemo.x0
+        # vdes = np.array([0,0,0])
 
-        ang_v = (np.pi/4.0) * f * cos(f*t)
+        # # Example for generating an orientation trajectory
+        # # The end effector will rotate around the x-axis during the line motion
+        # # following the changing ang
+        # ang = -np.pi + (np.pi/4.0) * sin(f*t)
+        # r = ang * np.array([1.0, 0.0, 0.0])
+        # Rdes = rotvec_to_matrix(r)
+
+        # ang_v = (np.pi/4.0) * f * cos(f*t)
+        # ang_vdes = ang_v * np.array([1.0, 0.0, 0.0])
+        ang_v = (np.pi / 4.0) * f * np.cos(f * t)
         ang_vdes = ang_v * np.array([1.0, 0.0, 0.0])
-
         ## END STUDENT CODE
         return Rdes, ang_vdes, xdes, vdes
 
