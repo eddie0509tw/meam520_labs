@@ -85,9 +85,9 @@ class JacobianDemo():
         Rdes = np.diag([1., -1., -1.])
         ang_vdes = 0.0 * np.array([1.0, 0.0, 0.0])
 
-        return Rdes, ang_vdes, xdes, vdes*0.1
+        return Rdes, ang_vdes, xdes, vdes
 
-    def ellipse(t,f=0.5,ry=.15,rz=.10):
+    def ellipse(t,f=0.1,ry=.15,rz=.10):
         """
         Calculate the position and velocity of the figure ellipse trajector
 
@@ -103,20 +103,24 @@ class JacobianDemo():
         Rdes = 3x3 np array of target end effector orientation in the world frame
         ang_vdes = 0x3 np array of target end effector orientation velocity in the rotation vector representation in the world frame
         """
-
-
-        ## STUDENT CODE GOES HERE
         x0 = np.array([0.307, 0, 0.487]) # corresponds to neutral position
-        ω = 2 * np.pi * f
+        # Calculate position (x, y, z) of the ellipse trajectory
+        #x = np.cos(2 * np.pi * f * t)
+        y = ry * np.cos(2 * np.pi * f * t)
+        z = rz * np.sin(2 * np.pi * f * t)
 
-        # Position
-        y = ry * np.cos(ω * t)
-        z = rz * np.sin(ω * t)
+        # Calculate velocity (vx, vy, vz) of the ellipse trajectory
+        #vx = -2 * np.pi * f * np.sin(2 * np.pi * f * t)
+        vy = -2 * np.pi * f * ry * np.sin(2 * np.pi * f * t)
+        vz = 2 * np.pi * f * rz * np.cos(2 * np.pi * f * t)
+        # Calculate orientation velocity (ang_vdes) in rotation vector representation
+        ang_vdes = np.array([0.0, 0.0, 0.0])  # No angular velocity for simplicity
+
+        # Create numpy arrays for position, velocity, and orientation
         xdes = x0 + np.array([0, y, z])
-        vy = -ry * ω * np.sin(ω * t)
-        vz = rz * ω * np.cos(ω * t)
         vdes = np.array([0, vy, vz])
-        forward = np.array([0, vy, vz])
+
+        forward = vdes
         if np.linalg.norm(forward) > 0:
             forward = forward / np.linalg.norm(forward)
         up = np.array([1, 0, 0])  # Assume up vector
@@ -124,18 +128,13 @@ class JacobianDemo():
         if np.linalg.norm(right) > 0:
             right = right / np.linalg.norm(right)
         up = np.cross(forward, right)
+        if np.linalg.norm(up) > 0:
+            up = up / np.linalg.norm(up)
         Rdes = np.column_stack((right, forward, up))
 
-        # TODO: replace these!
-        # xdes = JacobianDemo.x0
-        # vdes = np.array([0,0,0])
-        #Rdes = np.diag([1., -1., -1.])
-        ang_vdes = 0.0 * np.array([1.0, 0.0, 0.0])
-        ## END STUDENT CODE
-        
         return Rdes, ang_vdes, xdes, vdes
 
-    def line(t,f=1.0,L=.15):
+    def line(t,f=0.1,L=.15):
         """
         Calculate the position and velocity of the line trajector
 
@@ -221,7 +220,7 @@ class JacobianDemo():
                 # First Order Integrator, Proportional Control with Feed Forward
                 kp = 0.01
                 v = vdes + kp * (xdes - curr_x)
-                
+
                 # Rotation
                 kr = 0.01
                 omega = ang_vdes + kr * calcAngDiff(Rdes, R).flatten()
@@ -280,7 +279,7 @@ if __name__ == "__main__":
 
     # q = np.array([ 0,    0,     0, 0,     0, pi, 0.75344866 ])
     # arm.safe_move_to_position(q)
-    
+
     # start tracking trajectory
     JD.active = True
     JD.start_time = time_in_seconds()
