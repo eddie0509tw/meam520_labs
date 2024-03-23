@@ -10,9 +10,10 @@ from tf.transformations import quaternion_from_matrix
 from core.interfaces import ArmController
 from core.utils import time_in_seconds
 
-from lib.IK_velocity import IK_velocity
+from lib.IK_velocity_null import IK_velocity_null
 from lib.calculateFK import FK
 from lib.calcAngDiff import calcAngDiff
+from lib.calcManipulability import calcManipulability
 
 #####################
 ## Rotation Helper ##
@@ -189,16 +190,22 @@ class JacobianDemo():
                 curr_x = np.copy(x.flatten())
 
                 # First Order Integrator, Proportional Control with Feed Forward
-                kp = 0.01
+                kp = 5.0
                 v = vdes + kp * (xdes - curr_x)
                 
                 # Rotation
-                kr = 0.01
+                kr = 5.0
                 omega = ang_vdes + kr * calcAngDiff(Rdes, R).flatten()
 
 
+                ## STUDENT CODE MODIFY HERE, DEFINE SECONDARY TASK IN THE NULL SPACE
+                lower = np.array([-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973])
+                upper = np.array([2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973])
+                q_e = lower + (upper - lower) / 2
+                k0 = 1.0
+
                 # Velocity Inverse Kinematics
-                dq = IK_velocity(q, v, omega).flatten()
+                dq = IK_velocity_null(q,v, omega, - k0 * (q - q_e)).flatten()
 
 
                 # Get the correct timing to update with the robot
