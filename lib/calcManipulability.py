@@ -18,6 +18,9 @@ def calcManipulability(q_in):
     M = J_pos @ J_pos.T
 
     ## STUDENT CODE STARTS HERE for the mu index, Hint: np.linalg.svd
-    mu = 0.0
+    U, S, V = np.linalg.svd(J)
+
+    # Step 4: Calculate the manipulability index μ as the product of singular values
+    mu = np.prod(S)
 
     return mu, M

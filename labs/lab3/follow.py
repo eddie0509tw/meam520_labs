@@ -115,7 +115,7 @@ class JacobianDemo():
         Rdes = np.diag([1., -1., -1.])
         ang_vdes = 0.0 * np.array([1.0, 0.0, 0.0])
         ## END STUDENT CODE
-        
+
         return Rdes, ang_vdes, xdes, vdes
 
     def line(t,f=1.0,L=.15):
@@ -192,7 +192,7 @@ class JacobianDemo():
                 # First Order Integrator, Proportional Control with Feed Forward
                 kp = 5.0
                 v = vdes + kp * (xdes - curr_x)
-                
+
                 # Rotation
                 kr = 5.0
                 omega = ang_vdes + kr * calcAngDiff(Rdes, R).flatten()
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
     # q = np.array([ 0,    0,     0, 0,     0, pi, 0.75344866 ])
     # arm.safe_move_to_position(q)
-    
+
     # start tracking trajectory
     JD.active = True
     JD.start_time = time_in_seconds()
