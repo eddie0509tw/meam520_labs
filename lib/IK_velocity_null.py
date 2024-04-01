@@ -27,22 +27,27 @@ def IK_velocity_null(q_in, v_in, omega_in, b):
     omega_in = np.array(omega_in)
     omega_in = omega_in.reshape((3,1))
 
+    dq = np.zeros((1, 7))
+
     J=calcJacobian(q_in)
-    velocity = np.concatenate((v_in, omega_in))
 
-    nan_indices = np.isnan(velocity).flatten()
+    velocity=np.vstack((v_in,omega_in))
 
-    J[nan_indices] = 0
+    nan_indices = np.isnan(velocity)                        # Finding Nan indexes
 
-    velocity[nan_indices] = 0
+    indices = np.where(nan_indices)[0]
 
-    dq, _, _, _ = np.linalg.lstsq(J, velocity, rcond=None)
+    velocity=np.delete(velocity,indices,axis=0)
 
-    if not np.allclose(b, 0):
-        J_pinv = np.linalg.pinv(J)
-        null_space_projector = np.eye(q_in.shape[0]) - np.dot(J_pinv, J)
-        null = np.dot(null_space_projector, b)
-    else:
-        null = np.zeros_like(dq)
+    J=np.delete(J,indices,axis=0)
 
-    return dq + null.reshape(dq.shape)
+    J_pinv= np.linalg.pinv(J)
+
+    I= np.identity(7)
+
+    dq=np.dot(J_pinv,velocity)
+
+    null= np.dot(I-np.dot(J_pinv,J),b)                     # nullspace = (I-Jinv*J)*b
+
+
+    return dq + null
