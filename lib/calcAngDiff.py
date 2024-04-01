@@ -28,7 +28,7 @@ def calcAngDiff(R_des, R_curr):
     #    eigenvalues, eigenvectors = np.linalg.eigh(R_rel)
     #    a = eigenvectors[:, np.isclose(eigenvalues, 1)]
 
-    omega = R_rel @ a
+    omega = R_curr @ a
 
     return omega
 
