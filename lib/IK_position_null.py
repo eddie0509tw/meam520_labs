@@ -70,10 +70,11 @@ class IK:
         ## STUDENT CODE STARTS HERE
         displacement = np.zeros(3)
         axis = np.zeros(3)
-        displacement = target[:3, 3] - current[:3, 3]
-        R_des = target[:3, :3]
-        R_curr = current[:3, :3]
-        axis = calcAngDiff(R_des, R_curr)
+
+        displacement = target[:-1, -1] - current[:-1, -1]
+
+        axis = calcAngDiff(target[:-1, :-1], current[:-1, :-1])
+
         ## END STUDENT CODE
         return displacement, axis
 
@@ -99,13 +100,18 @@ class IK:
         """
 
         ## STUDENT CODE STARTS HERE
-        distance = 0
-        angle = 0
-        distance = np.linalg.norm(G[:3, 3] - H[:3, 3])
-        R_gh = H.T@G
-        trace_value = (np.trace(R_gh) - 1) / 2
-        trace_value_clamped = np.clip(trace_value, -1, 1)
-        angle = acos(trace_value_clamped)
+        dist = G[:-1, -1] - H[:-1, -1]
+        distance = np.linalg.norm(dist)
+
+        R_G, R_H = G[:-1, :-1], H[:-1, :-1]
+
+        R_rel = R_H.T @ R_G
+        tr_R  = (np.trace(R_rel) - 1) / 2
+
+        theta_rel = np.clip(tr_R, -1.0, 1.0)
+
+        angle = acos(theta_rel)
+
         ## END STUDENT CODE
         return distance, angle
 
@@ -127,21 +133,19 @@ class IK:
         """
 
         ## STUDENT CODE STARTS HERE
-        fk = FK()
-        if np.all(q>=self.lower) and np.all(q<=self.upper):
-            _,derived_transformation = fk.forward(q)
-            distance,angle = IK.distance_and_angle(target,derived_transformation)
+        success = False
 
-            if distance<=self.linear_tol and angle<=self.angular_tol:
+        if not (np.any(q >= self.upper) or np.any(q <= self.lower)):
+            joint_pos, T0e = IK.fk.forward(q)
+            dist, a = self.distance_and_angle(target, T0e)
+
+            if dist <= self.linear_tol and a <= self.angular_tol:
                 success = True
                 message = "Solution found"
             else:
-                success = False
-                message = "Solution not found + Tolerance greater"
-
+                message = "Solution not found: out of dist limit or angular limit"
         else:
-            success = False
-            message = "Solution not found + out of limits"
+            message = "Solution not found: out of q limit"
         ## END STUDENT CODE
         return success, message
 
@@ -169,25 +173,26 @@ class IK:
 
         ## STUDENT CODE STARTS HERE
         dq = np.zeros(7)
-        _, current_pose = IK.fk.forward(q)
-
-        displacement, axis = IK.displacement_and_axis(target, current_pose)
+        _ , T0e = IK.fk.forward(q)
         J = calcJacobian(q)
-        e=np.concatenate((displacement,axis))
-        e=e.reshape(6,1)
+        disp, omega = IK.displacement_and_axis(target, T0e)
+        e = np.concatenate((disp,omega)).reshape(-1, 1)
 
-        nan_indices = np.isnan(e)                        # Finding Nan indexes
-        indices = np.where(nan_indices)[0]
-        e=np.delete(e,indices,axis=0)
-        J=np.delete(J,indices,axis=0)
+        nan_indices = np.isnan(e).flatten()
 
-        if method == 'J_pseudo':
-            J_pinv = np.linalg.pinv(J)
-            dq = J_pinv @ e
-        elif method == 'J_trans':
-            dq = J.T @ e
+        J_ = J[~nan_indices]
+
+        e_ = e[~nan_indices]
+
+        if method == 'J_trans':
+            dq = J_.T @ e_
+        elif method == 'J_pseudo':
+            dq = np.linalg.pinv(J_) @ e
+        else:
+            raise ValueError('Invalid Method')
+
         ## END STUDENT CODE
-        return dq
+        return dq.flatten()
 
     @staticmethod
     def joint_centering_task(q,rate=5e-1):
@@ -239,12 +244,13 @@ class IK:
         rollout - a list containing the guess for q at each iteration of the algorithm
         """
 
-        q = seed
+        q = np.array(seed)
         rollout = []
+
         ## STUDENT CODE STARTS HERE
 
-
         ## gradient descent:
+        count = 0
         while True:
             rollout.append(q)
 
@@ -256,25 +262,22 @@ class IK:
 
             ## Task Prioritization
             J = calcJacobian(q)
-            J_pinv = np.linalg.pinv(J)
-            I = np.eye(len(q))
-            N = I - J_pinv @ J
-            null_dq = N @ dq_center
-            null_dq=null_dq.reshape(7,1)
-            dq=dq_ik
+            dq = dq_ik + (np.eye(seed.shape[0]) - np.linalg.pinv(J) @ J) @ dq_center
+
             # Check termination conditions
-            if (len(rollout)>=self.max_steps) or (np.linalg.norm(dq)<=self.min_step_size):
+            if count >= self.max_steps or np.linalg.norm(dq) <= self.min_step_size:
                 break
 
             # update q
-            q=q.reshape(7,1)
-            q=q+(alpha*(dq + null_dq))
-            q=q.reshape(1,7)
-            q = q.flatten()
+            q += alpha*dq
+            count+=1
+
+
         ## END STUDENT CODE
 
         success, message = self.is_valid_solution(q,target)
         return q, rollout, success, message
+
 ################################
 ## Simple Testing Environment ##
 ################################
