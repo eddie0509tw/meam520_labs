@@ -5,7 +5,6 @@ from scipy.linalg import null_space
 from lib.calcJacobian import calcJacobian
 from lib.calculateFK import FK
 from lib.calcAngDiff import calcAngDiff
-from time import perf_counter
 # from lib.IK_velocity import IK_velocity  #optional
 
 
@@ -71,14 +70,10 @@ class IK:
         ## STUDENT CODE STARTS HERE
         displacement = np.zeros(3)
         axis = np.zeros(3)
-
-        R_des = target[:3, :3]                  # Translation matrix last column
-        R_curr = current[:3, :3]
-
         displacement = target[:3, 3] - current[:3, 3]
-
-        axis = calcAngDiff(R_des, R_curr)           # Omega as calculated before
-
+        R_des = target[:3, :3]
+        R_curr = current[:3, :3]
+        axis = calcAngDiff(R_des, R_curr)
         ## END STUDENT CODE
         return displacement, axis
 
@@ -106,16 +101,11 @@ class IK:
         ## STUDENT CODE STARTS HERE
         distance = 0
         angle = 0
-
-        distance_vector= G[:3,3] - H[:3,3]
-        distance = np.linalg.norm(distance_vector)              # Distance in m
-
-        R_G_H =  np.dot(np.transpose(H),G)
-
-        tr_R_G_H= (np.trace(R_G_H)-1)/2
-
-        angle=np.arccos((max(-1.0, min(1.0, tr_R_G_H))))
-
+        distance = np.linalg.norm(G[:3, 3] - H[:3, 3])
+        R_gh = H.T@G
+        trace_value = (np.trace(R_gh) - 1) / 2
+        trace_value_clamped = np.clip(trace_value, -1, 1)
+        angle = acos(trace_value_clamped)
         ## END STUDENT CODE
         return distance, angle
 
@@ -135,6 +125,8 @@ class IK:
         angular tolerances of the target pose, and also respects the joint
         limits.
         """
+
+        ## STUDENT CODE STARTS HERE
         fk = FK()
         if np.all(q>=self.lower) and np.all(q<=self.upper):
             _,derived_transformation = fk.forward(q)
@@ -150,7 +142,6 @@ class IK:
         else:
             success = False
             message = "Solution not found + out of limits"
-
         ## END STUDENT CODE
         return success, message
 
@@ -175,14 +166,14 @@ class IK:
         dq - a desired joint velocity to perform this task, which will smoothly
         decay to zero magnitude as the task is achieved
         """
-        fk = FK()
+
         ## STUDENT CODE STARTS HERE
         dq = np.zeros(7)
-        _,current_transformation = fk.forward(q)
-        distance,axis= IK.displacement_and_axis(target,current_transformation)
+        _, current_pose = IK.fk.forward(q)
 
-        J=calcJacobian(q)
-        e=np.concatenate((distance,axis))
+        displacement, axis = IK.displacement_and_axis(target, current_pose)
+        J = calcJacobian(q)
+        e=np.concatenate((displacement,axis))
         e=e.reshape(6,1)
 
         nan_indices = np.isnan(e)                        # Finding Nan indexes
@@ -191,14 +182,10 @@ class IK:
         J=np.delete(J,indices,axis=0)
 
         if method == 'J_pseudo':
-            J_pinv= np.linalg.pinv(J)  # Calculate Jacobian using Pseudo-Inverse method
-            dq=np.dot(J_pinv,e)
-
-
+            J_pinv = np.linalg.pinv(J)
+            dq = J_pinv @ e
         elif method == 'J_trans':
-            J_transpose = J.T           # Calculate Jacobian using Transpose method
-            dq=np.dot(J_transpose,e)
-
+            dq = J.T @ e
         ## END STUDENT CODE
         return dq
 
@@ -252,9 +239,8 @@ class IK:
         rollout - a list containing the guess for q at each iteration of the algorithm
         """
 
-        q = np.array(seed)
+        q = seed
         rollout = []
-
         ## STUDENT CODE STARTS HERE
 
 
@@ -268,33 +254,27 @@ class IK:
             # Secondary Task - Center Joints
             dq_center = IK.joint_centering_task(q)
 
-            I= np.identity(7)
-            J=calcJacobian(q)
-            J_pseudo_inv = np.linalg.pinv(J)
-            null_dq= np.dot((I-np.dot(J_pseudo_inv,J)),dq_center)   # making null space
-
             ## Task Prioritization
+            J = calcJacobian(q)
+            J_pinv = np.linalg.pinv(J)
+            I = np.eye(len(q))
+            N = I - J_pinv @ J
+            null_dq = N @ dq_center
             null_dq=null_dq.reshape(7,1)
-
             dq=dq_ik
-
-
             # Check termination conditions
             if (len(rollout)>=self.max_steps) or (np.linalg.norm(dq)<=self.min_step_size):
                 break
 
             # update q
             q=q.reshape(7,1)
-            q=q+(alpha*(dq + null_dq))            # Gradient Descent with null space.
+            q=q+(alpha*(dq + null_dq))
             q=q.reshape(1,7)
             q = q.flatten()
-
-
         ## END STUDENT CODE
 
         success, message = self.is_valid_solution(q,target)
         return q, rollout, success, message
-
 ################################
 ## Simple Testing Environment ##
 ################################
