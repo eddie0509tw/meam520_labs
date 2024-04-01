@@ -21,7 +21,7 @@ rospy.init_node("visualizer")
 ik = IK()
 
 # Turn on/off Manipulability Ellipsoid
-visulaize_mani_ellipsoid = False
+visulaize_mani_ellipsoid = True
 
 #########################
 ##  RViz Communication ##
@@ -140,7 +140,7 @@ def transform(d,rpy):
 # valid transformation matrices from a translation vector and Euler angles, or a
 # sequence of successive rotations around z, y, and x. You are free to use these
 # to generate your own tests, or directly write out transforms you wish to test.
-
+'''
 targets = [
     transform( np.array([-.2, -.3, .5]), np.array([0,pi,pi])            ),
     transform( np.array([-.2, .3, .5]),  np.array([pi/6,5/6*pi,7/6*pi]) ),
@@ -152,6 +152,15 @@ targets = [
     transform( np.array([.2, -.6, 0.5]), np.array([pi/4,pi-pi/2,pi])    ),
     transform( np.array([.5, 0, 0.2]),   np.array([0,pi-pi/2,pi])       ),
     transform( np.array([.4, 0, 0.2]),   np.array([pi/2,pi-pi/2,pi])    ),
+]
+'''
+targets = [
+    #transform( np.array([-.2, -.3, 0.5]), np.array([0,pi/2,pi])),
+    #transform( np.array([-.2, -.2, 0.2]), np.array([pi/3,pi,pi])),
+    #transform( np.array([.7, 0, .5]),    np.array([pi,pi,pi]) ),
+    #transform( np.array([.0, 0.2, 1.2]),    np.array([5*pi/8,pi,pi/2])),
+    transform( np.array([-0.3, -.6, 0.5]), np.array([pi/3,pi-pi/2,pi]) )
+
 ]
 
 ####################
@@ -185,7 +194,7 @@ if __name__ == "__main__":
             print("Solution found in {time:2.2f} seconds ({it} iterations).".format(time=dt,it=len(rollout)))
             arm.safe_move_to_position(q)
 
-            # Visualize 
+            # Visualize
             if visulaize_mani_ellipsoid:
                 mu, M = calcManipulability(q)
                 show_manipulability_ellipsoid(M)
