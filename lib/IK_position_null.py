@@ -5,6 +5,7 @@ from scipy.linalg import null_space
 from lib.calcJacobian import calcJacobian
 from lib.calculateFK import FK
 from lib.calcAngDiff import calcAngDiff
+from time import perf_counter
 # from lib.IK_velocity import IK_velocity  #optional
 
 
@@ -71,9 +72,12 @@ class IK:
         displacement = np.zeros(3)
         axis = np.zeros(3)
 
-        displacement = target[:-1, -1] - current[:-1, -1]
+        R_des = target[:3, :3]                  # Translation matrix last column
+        R_curr = current[:3, :3]
 
-        axis = calcAngDiff(target[:-1, :-1], current[:-1, :-1])
+        displacement = target[:3, 3] - current[:3, 3]
+
+        axis = calcAngDiff(R_des, R_curr)           # Omega as calculated before
 
         ## END STUDENT CODE
         return displacement, axis
@@ -100,17 +104,17 @@ class IK:
         """
 
         ## STUDENT CODE STARTS HERE
-        dist = G[:-1, -1] - H[:-1, -1]
-        distance = np.linalg.norm(dist)
+        distance = 0
+        angle = 0
 
-        R_G, R_H = G[:-1, :-1], H[:-1, :-1]
+        distance_vector= G[:3,3] - H[:3,3]
+        distance = np.linalg.norm(distance_vector)              # Distance in m
 
-        R_rel = R_H.T @ R_G
-        tr_R  = (np.trace(R_rel) - 1) / 2
+        R_G_H =  np.dot(np.transpose(H),G)
 
-        theta_rel = np.clip(tr_R, -1.0, 1.0)
+        tr_R_G_H= (np.trace(R_G_H)-1)/2
 
-        angle = acos(theta_rel)
+        angle=np.arccos((max(-1.0, min(1.0, tr_R_G_H))))
 
         ## END STUDENT CODE
         return distance, angle
@@ -131,21 +135,22 @@ class IK:
         angular tolerances of the target pose, and also respects the joint
         limits.
         """
+        fk = FK()
+        if np.all(q>=self.lower) and np.all(q<=self.upper):
+            _,derived_transformation = fk.forward(q)
+            distance,angle = IK.distance_and_angle(target,derived_transformation)
 
-        ## STUDENT CODE STARTS HERE
-        success = False
-
-        if not (np.any(q >= self.upper) or np.any(q <= self.lower)):
-            joint_pos, T0e = IK.fk.forward(q)
-            dist, a = self.distance_and_angle(target, T0e)
-
-            if dist <= self.linear_tol and a <= self.angular_tol:
+            if distance<=self.linear_tol and angle<=self.angular_tol:
                 success = True
                 message = "Solution found"
             else:
-                message = "Solution not found: out of dist limit or angular limit"
+                success = False
+                message = "Solution not found + Tolerance greater"
+
         else:
-            message = "Solution not found: out of q limit"
+            success = False
+            message = "Solution not found + out of limits"
+
         ## END STUDENT CODE
         return success, message
 
@@ -170,29 +175,32 @@ class IK:
         dq - a desired joint velocity to perform this task, which will smoothly
         decay to zero magnitude as the task is achieved
         """
-
+        fk = FK()
         ## STUDENT CODE STARTS HERE
         dq = np.zeros(7)
-        _ , T0e = IK.fk.forward(q)
-        J = calcJacobian(q)
-        disp, omega = IK.displacement_and_axis(target, T0e)
-        e = np.concatenate((disp,omega)).reshape(-1, 1)
+        _,current_transformation = fk.forward(q)
+        distance,axis= IK.displacement_and_axis(target,current_transformation)
 
-        nan_indices = np.isnan(e).flatten()
+        J=calcJacobian(q)
+        e=np.concatenate((distance,axis))
+        e=e.reshape(6,1)
 
-        J_ = J[~nan_indices]
+        nan_indices = np.isnan(e)                        # Finding Nan indexes
+        indices = np.where(nan_indices)[0]
+        e=np.delete(e,indices,axis=0)
+        J=np.delete(J,indices,axis=0)
 
-        e_ = e[~nan_indices]
+        if method == 'J_pseudo':
+            J_pinv= np.linalg.pinv(J)  # Calculate Jacobian using Pseudo-Inverse method
+            dq=np.dot(J_pinv,e)
 
-        if method == 'J_trans':
-            dq = J_.T @ e_
-        elif method == 'J_pseudo':
-            dq = np.linalg.pinv(J_) @ e
-        else:
-            raise ValueError('Invalid Method')
+
+        elif method == 'J_trans':
+            J_transpose = J.T           # Calculate Jacobian using Transpose method
+            dq=np.dot(J_transpose,e)
 
         ## END STUDENT CODE
-        return dq.flatten()
+        return dq
 
     @staticmethod
     def joint_centering_task(q,rate=5e-1):
@@ -249,8 +257,8 @@ class IK:
 
         ## STUDENT CODE STARTS HERE
 
+
         ## gradient descent:
-        count = 0
         while True:
             rollout.append(q)
 
@@ -260,17 +268,26 @@ class IK:
             # Secondary Task - Center Joints
             dq_center = IK.joint_centering_task(q)
 
+            I= np.identity(7)
+            J=calcJacobian(q)
+            J_pseudo_inv = np.linalg.pinv(J)
+            null_dq= np.dot((I-np.dot(J_pseudo_inv,J)),dq_center)   # making null space
+
             ## Task Prioritization
-            J = calcJacobian(q)
-            dq = dq_ik + (np.eye(seed.shape[0]) - np.linalg.pinv(J) @ J) @ dq_center
+            null_dq=null_dq.reshape(7,1)
+
+            dq=dq_ik
+
 
             # Check termination conditions
-            if count >= self.max_steps or np.linalg.norm(dq) <= self.min_step_size:
+            if (len(rollout)>=self.max_steps) or (np.linalg.norm(dq)<=self.min_step_size):
                 break
 
             # update q
-            q += alpha*dq
-            count+=1
+            q=q.reshape(7,1)
+            q=q+(alpha*(dq + null_dq))            # Gradient Descent with null space.
+            q=q.reshape(1,7)
+            q = q.flatten()
 
 
         ## END STUDENT CODE
