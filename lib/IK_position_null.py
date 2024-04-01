@@ -71,6 +71,10 @@ class IK:
         displacement = np.zeros(3)
         axis = np.zeros(3)
 
+        displacement = target[:-1, -1] - current[:-1, -1]
+
+        axis = calcAngDiff(target[:-1, :-1], current[:-1, :-1])
+
         ## END STUDENT CODE
         return displacement, axis
 
@@ -94,10 +98,19 @@ class IK:
         distance - the distance in meters between the origins of G & H
         angle - the angle in radians between the orientations of G & H
         """
-        
+
         ## STUDENT CODE STARTS HERE
-        distance = 0
-        angle = 0
+        dist = G[:-1, -1] - H[:-1, -1]
+        distance = np.linalg.norm(dist)
+
+        R_G, R_H = G[:-1, :-1], H[:-1, :-1]
+
+        R_rel = R_H.T @ R_G
+        tr_R  = (np.trace(R_rel) - 1) / 2
+
+        theta_rel = np.clip(tr_R, -1.0, 1.0)
+
+        angle = acos(theta_rel)
 
         ## END STUDENT CODE
         return distance, angle
@@ -121,8 +134,18 @@ class IK:
 
         ## STUDENT CODE STARTS HERE
         success = False
-        message = "Solution found/not found + reason"
 
+        if not (np.any(q >= self.upper) or np.any(q <= self.lower)):
+            joint_pos, T0e = IK.fk.forward(q)
+            dist, a = self.distance_and_angle(target, T0e)
+
+            if dist <= self.linear_tol and a <= self.angular_tol:
+                success = True
+                message = "Solution found"
+            else:
+                message = "Solution not found: out of dist limit or angular limit"
+        else:
+            message = "Solution not found: out of q limit"
         ## END STUDENT CODE
         return success, message
 
@@ -140,9 +163,9 @@ class IK:
         INPUTS:
         q - the current joint configuration, a "best guess" so far for the final answer
         target - a 4x4 numpy array containing the desired end effector pose
-        method - a boolean variable that determines to use either 'J_pseudo' or 'J_trans' 
+        method - a boolean variable that determines to use either 'J_pseudo' or 'J_trans'
         (J pseudo-inverse or J transpose) in your algorithm
-        
+
         OUTPUTS:
         dq - a desired joint velocity to perform this task, which will smoothly
         decay to zero magnitude as the task is achieved
@@ -150,12 +173,29 @@ class IK:
 
         ## STUDENT CODE STARTS HERE
         dq = np.zeros(7)
+        _ , T0e = IK.fk.forward(q)
+        J = calcJacobian(q)
+        disp, omega = IK.displacement_and_axis(target, T0e)
+        e = np.concatenate((disp,omega)).reshape(-1, 1)
+
+        nan_indices = np.isnan(e).flatten()
+
+        J_ = J[~nan_indices]
+
+        e_ = e[~nan_indices]
+
+        if method == 'J_trans':
+            dq = J_.T @ e_
+        elif method == 'J_pseudo':
+            dq = np.linalg.pinv(J_) @ e
+        else:
+            raise ValueError('Invalid Method')
 
         ## END STUDENT CODE
-        return dq
+        return dq.flatten()
 
     @staticmethod
-    def joint_centering_task(q,rate=5e-1): 
+    def joint_centering_task(q,rate=5e-1):
         """
         Secondary task for IK solver. Computes a joint velocity which will
         reduce the offset between each joint's angle and the center of its range
@@ -179,7 +219,7 @@ class IK:
         dq = rate * -offset # proportional term (implied quadratic cost)
 
         return dq
-        
+
     ###############################
     ## Inverse Kinematics Solver ##
     ###############################
@@ -193,7 +233,7 @@ class IK:
         end effector to world
         seed - 1x7 vector of joint angles [q0, q1, q2, q3, q4, q5, q6], which
         is the "initial guess" from which to proceed with optimization
-        method - a boolean variable that determines to use either 'J_pseudo' or 'J_trans' 
+        method - a boolean variable that determines to use either 'J_pseudo' or 'J_trans'
         (J pseudo-inverse or J transpose) in your algorithm
 
         OUTPUTS:
@@ -204,13 +244,13 @@ class IK:
         rollout - a list containing the guess for q at each iteration of the algorithm
         """
 
-        q = seed
+        q = np.array(seed)
         rollout = []
 
         ## STUDENT CODE STARTS HERE
 
-        
         ## gradient descent:
+        count = 0
         while True:
             rollout.append(q)
 
@@ -221,12 +261,17 @@ class IK:
             dq_center = IK.joint_centering_task(q)
 
             ## Task Prioritization
+            J = calcJacobian(q)
+            dq = dq_ik + (np.eye(seed.shape[0]) - np.linalg.pinv(J) @ J) @ dq_center
 
             # Check termination conditions
-            break
+            if count >= self.max_steps or np.linalg.norm(dq) <= self.min_step_size:
+                break
 
             # update q
-            
+            q += alpha*dq
+            count+=1
+
 
         ## END STUDENT CODE
 
@@ -253,7 +298,7 @@ if __name__ == "__main__":
         [0,0,0, 1],
     ])
 
-    # Using pseudo-inverse 
+    # Using pseudo-inverse
     q_pseudo, rollout_pseudo, success_pseudo, message_pseudo = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
 
     for i, q_pseudo in enumerate(rollout_pseudo):
@@ -261,7 +306,7 @@ if __name__ == "__main__":
         d, ang = IK.distance_and_angle(target,pose)
         print('iteration:',i,' q =',q_pseudo, ' d={d:3.4f}  ang={ang:3.3f}'.format(d=d,ang=ang))
 
-    # Using pseudo-inverse 
+    # Using pseudo-inverse
     q_trans, rollout_trans, success_trans, message_trans = ik.inverse(target, seed, method='J_trans', alpha=.5)
 
     for i, q_trans in enumerate(rollout_trans):
