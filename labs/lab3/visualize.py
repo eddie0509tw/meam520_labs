@@ -155,11 +155,16 @@ targets = [
 ]
 '''
 targets = [
-    #transform( np.array([-.2, -.3, 0.5]), np.array([0,pi/2,pi])),
+    #transform( np.array([-.2, -.2, 0.5]), np.array([0,pi,pi])),
+    #transform( np.array([-.2, .1, .5]),  np.array([0,0,0]) ),
+    transform( np.array([-.2, -.3, 0.5]), np.array([0,pi/2,pi])),
     #transform( np.array([-.2, -.2, 0.2]), np.array([pi/3,pi,pi])),
     #transform( np.array([.7, 0, .5]),    np.array([pi,pi,pi]) ),
     #transform( np.array([.0, 0.2, 1.2]),    np.array([5*pi/8,pi,pi/2])),
-    transform( np.array([-0.3, -.6, 0.5]), np.array([pi/3,pi-pi/2,pi]) )
+    #%transform( np.array([-0.3, -.6, 0.5]), np.array([pi/3,pi-pi/2,pi]) ),
+    #transform( np.array([-0.3, -.6, 0.5]), np.array([pi/6,pi-pi/2,pi]) ),
+    #transform( np.array([.3, 0, 0.2]),   np.array([pi/2,pi-pi/2,pi])    ),
+    #transform( np.array([.7, 0, .5]),    np.array([0,pi/2,pi])),
 
 ]
 
@@ -174,9 +179,12 @@ if __name__ == "__main__":
     arm = ArmController()
     seed = arm.neutral_position()
     arm.safe_move_to_position(seed)
-
+    print(seed)
     # Iterates through the given targets, using your IK solution
     # Try editing the targets list above to do more testing!
+    time = []
+    iter = []
+    succ = []
     for i, target in enumerate(targets):
         print("Target " + str(i) + " located at:")
         print(target)
@@ -191,7 +199,11 @@ if __name__ == "__main__":
         dt = stop - start
 
         if success:
+            time.append(dt)
+            iter.append(len(rollout))
+            succ.append(1.0)
             print("Solution found in {time:2.2f} seconds ({it} iterations).".format(time=dt,it=len(rollout)))
+            print(q)
             arm.safe_move_to_position(q)
 
             # Visualize
@@ -200,8 +212,16 @@ if __name__ == "__main__":
                 show_manipulability_ellipsoid(M)
                 print('Manipulability Index',mu)
         else:
+            succ.append(0.0)
             print('IK Failed for this target using this seed.')
 
 
         if i < len(targets) - 1:
             input("Press Enter to move to next target...")
+    time = np.array(time)
+    iter = np.array(iter)
+    succ = np.array(succ)
+    print(succ)
+    print("The mean, median and maximum of time elasped is {} {} {}".format(np.mean(time), np.median(time), np.max(time)))
+    print("The mean, median and maximum of iterations is {} {} {}".format(np.mean(iter), np.median(iter), np.max(iter)))
+    print("The rate of success is {}/{} ".format(np.sum(succ == 1.0), succ.shape[0]))

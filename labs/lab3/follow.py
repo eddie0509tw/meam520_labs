@@ -59,7 +59,7 @@ class JacobianDemo():
     ## TRAJECTORIES ##
     ##################
 
-    def eight(t,fx=0.5,fy=1.0,rx=.15,ry=.1):
+    def eight(t,fx=0.5,fy=1.0,rx=.3,ry=.2):
         """
         Calculate the position and velocity of the figure 8 trajector
 
