@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # MEAM 520 Arm Controller, Fall 2021
 #
@@ -58,6 +58,8 @@ from image_geometry import PinholeCameraModel
 import math
 from math import sin, cos, pi
 from copy import deepcopy
+from cv_bridge import CvBridge
+import cv2
 
 class ObjectDetector:       
 
@@ -73,6 +75,9 @@ class ObjectDetector:
 		self.listener = tf.TransformListener()
 		self.detections = []
 		self.frame_height = self.frame_width = None
+
+		self.mid_depth = None
+		self.mid_rgb = None
 		
 		## all subscribers here
 		self.gazebo_sub = rospy.Subscriber('/gazebo/model_states', ModelStates, self.gazebo_cb, queue_size=1)
@@ -80,10 +85,15 @@ class ObjectDetector:
 		self.camera_software_sub = rospy.Subscriber('/image_raw', Image, self.image_callback, queue_size=1)
 		self.camera_info_sub = rospy.Subscriber('/camera_info', CameraInfo, self.camera_info_callback, queue_size=1)
 
+		# middle camera
+		self.mid_depth_sub = rospy.Subscriber("/depth/depth/image_raw", Image, self.mid_depth_callback, queue_size=1)
+		self.mid_rgb_sub = rospy.Subscriber("/depth/color/image_raw", Image, self.mid_rgb_callback, queue_size=1)
+
 		# Transform from camera to end-effector
 		if rospy.search_param('/use_sim_time'):
 			self.H_ee_camera = np.array([[0, -1, 0, 5e-2],[1, 0, 0, 0], [0, 0, 1, -6e-2], [0, 0, 0, 1]])
 		else:
+
 			if self.team == 'red':
 				self.H_ee_camera = np.array([[0, -1, 0, 3.00e-2],[1, 0, 0, 0.14e-2], [0, 0, 1, -5.224e-2], [0, 0, 0, 1]])
 			elif self.team == 'blue':
@@ -93,6 +103,14 @@ class ObjectDetector:
 	################
 	## SIMULATION ##
 	################
+				
+	def mid_depth_callback(self, msg):
+		br = CvBridge()
+		self.mid_depth = br.imgmsg_to_cv2(msg)
+
+	def mid_rgb_callback(self, msg):
+		br = CvBridge()
+		self.mid_rgb = br.imgmsg_to_cv2(msg, desired_encoding="bgr8")
 
 	def camera_info_callback(self, info):
 		if self.got_camera_info == False:
@@ -198,7 +216,7 @@ class ObjectDetector:
 				block_name = 'cube{}_static'.format(block_id)
 			position = msg.detections[i].pose.pose.position
 			orientation_quat = msg.detections[i].pose.pose.orientation
-			trans = [position.x, position.y, position.z-0.02]
+			trans = [position.x, position.y, position.z]
 			rot = [orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w]
 			H_cam_block = R.from_quat(rot).as_matrix()
 			H_cam_block = np.append(H_cam_block, np.array(trans).reshape(3,1), axis=1)
@@ -226,7 +244,23 @@ class ObjectDetector:
 
 		output: 4x4 homogeneous transformation matrix
 		"""
+		try:
+			(trans,rot) = self.listener.lookupTransform('panda_EE', 'camera',rospy.Time(0))
+			self.H_ee_camera = R.from_quat(rot).as_matrix()
+			self.H_ee_camera = np.append(self.H_ee_camera, np.array(trans).reshape(3,1), axis=1)
+			self.H_ee_camera = np.append(self.H_ee_camera, np.array([0,0,0,1]).reshape(1,4), axis=0)
+		
+		except Exception as e:
+			print(e)
+			pass
+
 		return self.H_ee_camera.copy()
+	
+	def get_mid_depth(self):
+		return self.mid_depth
+	
+	def get_mid_rgb(self):
+		return self.mid_rgb
 
 class ArmController(franka_interface.ArmInterface):
 	"""
