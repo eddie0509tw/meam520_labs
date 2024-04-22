@@ -26,9 +26,10 @@ def isRobotCollided(q_from, q_to, obstacles):
     j_to, _ = fk.forward(q_to) # joints 8x3
 
     n_o = len(obstacles)
+    tol = np.array([-0.05, -0.05, -0.05, 0.05, 0.05, 0.05])
 
     for i in range(n_o):
-        if np.any(detectCollision(j_from, j_to, obstacles[i])):
+        if np.any(detectCollision(j_from, j_to, obstacles[i] + tol)):
             return True
     # check for self collision_tolerance
     distance_matrix = np.sqrt(((j_to[:, np.newaxis] - j_to)**2).sum(axis=2))
