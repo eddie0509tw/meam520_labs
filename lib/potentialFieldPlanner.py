@@ -59,7 +59,7 @@ class PotentialFieldPlanner:
         """
 
         ## STUDENT CODE STARTS HERE
-        psi = 1.0
+        psi = 10.0
 
         att_f = np.zeros((3, 1))
         f = -(current - target)
@@ -170,7 +170,7 @@ class PotentialFieldPlanner:
         """
 
         ## STUDENT CODE STARTS HERE
-        n_o = obstacle.shape[0]
+        n_o = len(obstacle)
         joint_forces = np.zeros((3, 9))
         for i in range(joint_forces.shape[1]):
             rep_f = np.zeros((3, 1))
@@ -266,12 +266,43 @@ class PotentialFieldPlanner:
         target_pos, T0e_t = PotentialFieldPlanner.fk.forward_expanded(target)
         current_pos, T0e_c = PotentialFieldPlanner.fk.forward_expanded(q)
         forces = PotentialFieldPlanner.compute_forces(target_pos[1:].T, map_struct.obstacles, current_pos[1:].T)
-        torques = PotentialFieldPlanner.compute_torques(forces, q)
+        torques = PotentialFieldPlanner.compute_torques(forces, q)[0, :7]
 
         dq = torques/ np.linalg.norm(torques)
         ## END STUDENT CODE
 
-        return dq[0, :7]
+        return dq
+
+    def check_collision(self, q_new, q,  map_struct):
+        obstacles = map_struct.obstacles
+        n_o = len(obstacles)
+        for i in range(n_o):
+            j_old, _ = PotentialFieldPlanner.fk.forward_expanded(q)
+            j_new, _ = PotentialFieldPlanner.fk.forward_expanded(q_new)
+            if np.any(detectCollision(j_old, j_new, obstacles[i])):
+                return True
+
+        return False
+
+
+    def random_walk(self, q, step_size=0.05):
+        """
+        Perform a random walk to escape local minima.
+
+        :param q: Current joint angles.
+        :param step_size: Maximum magnitude of the random perturbation per joint per step.
+        :return: New joint angles after the random walk.
+        """
+        q_new = q.copy()
+
+        perturbation = np.random.uniform(-step_size, step_size, q.shape)
+        # Apply the perturbation
+        q_new += perturbation
+        # Ensure the new joint angles are within the joint limits
+        q_new = np.clip(q_new, self.lower, self.upper)
+        # Check if the new configuration is in collision
+
+        return q_new
 
     ###############################
     ### Potential Feild Solver  ###
@@ -297,7 +328,7 @@ class PotentialFieldPlanner:
         cnt = 0
         q = start
         q_path = np.vstack((q_path,q))
-        alpha = 3e-2
+        alpha = 2e-2
         last_q = np.zeros_like(q)
         while True:
 
@@ -308,20 +339,21 @@ class PotentialFieldPlanner:
             # Compute gradient
             dq = PotentialFieldPlanner.compute_gradient(q.flatten(), goal, map_struct)
             # TODO: this is how to change your joint angles
-            print(dq)
             assert not np.any(np.isnan(dq))
             # Termination Conditions
             print(PotentialFieldPlanner.q_distance(goal, q))
             if PotentialFieldPlanner.q_distance(goal, q) < self.tol or cnt > self.max_steps: # TODO: check termination conditions
                 break # exit the while loop if conditions are met!
-
+            q_new = q + alpha*dq
             # YOU NEED TO CHECK FOR COLLISIONS WITH OBSTACLES
+            while self.check_collision(q_new, q, map_struct):
+                print("collision detect")
+                q_new = self.random_walk(q)
             # TODO: Figure out how to use the provided function
-            q = q + alpha*dq
+            q = q_new
             q_path = np.vstack((q_path,q))
             # YOU MAY NEED TO DEAL WITH LOCAL MINIMA HERE
             # TODO: when detect a local minima, implement a random walk
-            #if diff  <
             cnt+=1
             #last_q = q
             ## END STUDENT CODE
