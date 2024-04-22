@@ -25,7 +25,7 @@ def isRobotCollided(q_from, q_to, obstacles):
     j_from, _ = fk.forward(q_from) # joints 8x3
     j_to, _ = fk.forward(q_to) # joints 8x3
 
-    n_o = obstacles.shape[0]
+    n_o = len(obstacles)
 
     for i in range(n_o):
         if np.any(detectCollision(j_from, j_to, obstacles[i])):
