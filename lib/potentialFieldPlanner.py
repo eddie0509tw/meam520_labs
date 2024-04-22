@@ -296,6 +296,7 @@ class PotentialFieldPlanner:
         q_path = np.array([]).reshape(0,7)
         cnt = 0
         q = start
+        q_path = np.vstack((q_path,q))
         alpha = 1e-3
         last_q = np.zeros_like(q)
         while True:
