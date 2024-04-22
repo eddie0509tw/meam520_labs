@@ -15,7 +15,7 @@ def getRandomConfiguration(lowerLim, upperLim):
     """
     return np.random.uniform(lowerLim, upperLim)
 
-'''
+
 def isRobotCollided(q_from, q_to, obstacles):
     #
     #obstacle - nx6 numpy array representing the obstacle box min and max positions
@@ -31,49 +31,18 @@ def isRobotCollided(q_from, q_to, obstacles):
     for i in range(n_o):
         if np.any(detectCollision(j_from, j_to, obstacles[i] + tol)):
             return True
+        intermediate_points = np.linspace(q_from, q_to, num=10, axis=1)
+        for j in range(intermediate_points.shape[1]-1):
+            j_1, _ = fk.forward(intermediate_points[..., j])
+            j_2, _ = fk.forward(intermediate_points[..., j+1])
+            if np.any(detectCollision(j_1, j_2, obstacles[i] + tol)):
+                return True
     # check for self collision_tolerance
     distance_matrix = np.sqrt(((j_to[:, np.newaxis] - j_to)**2).sum(axis=2))
     upper_triangle_distances = np.triu(distance_matrix, k=1)
     upper_triangle_flat = upper_triangle_distances[upper_triangle_distances != 0]
     if np.any(upper_triangle_flat < 0.1):
         return True
-
-    return False
-'''
-def isRobotCollided (q_from, q_to, map):
-    fk=FK()
-    linept_from,_= fk.forward(q_from)
-    linept_to,_= fk.forward(q_to)
-    for obstacle in map[0]:                     # Checking for all obstacles
-        tolerances = [-0.05, -0.05, -0.05, 0.05, 0.05, 0.05]                # inflating obstacles
-        box = [value + tolerance for value, tolerance in zip(obstacle, tolerances)]
-
-        # Checking for small distances from start to goal position along the way.
-        num_div=10
-        for i in range(num_div):
-            a = q_from + i * (q_to - q_from) / num_div
-            b = q_from + (i+1)*(q_to - q_from)/num_div
-            pt1,_=fk.forward(a)
-            pt2,_=fk.forward(b)
-            iscollide = np.array(detectCollision(pt1, pt2, box))
-            if np.any(iscollide):
-                return True
-
-        #Link collision check
-        iscollide = np.array(detectCollision(linept_to[0:6], linept_to[1:7], box))
-        if np.any(iscollide):
-            return True
-    return False
-
-def isRobotSelfCollided(q):                         # Checking distance bettween all the joints for self collision check
-    fk = FK()
-    link_positions,_=fk.forward(q)
-    collision_tolerance = 0.04
-    for i in range(7):
-        for j in range(i + 1, 7):
-            distance = np.linalg.norm(link_positions[i] - link_positions[j])
-            if distance < collision_tolerance:
-                return True
 
     return False
 
@@ -120,13 +89,13 @@ def rrt(map, start, goal):
         q_samp = getRandomConfiguration(lowerLim, upperLim)
         i_st, q_st = findNearsetNode(q_samp, T_start)
         connect = True
-        if not isRobotCollided(q_st, q_samp, map) and not isRobotSelfCollided(q_samp):
+        if not isRobotCollided(q_st, q_samp, obstacles):
             T_start.append(q_samp)
             P_start.append(i_st)
         else:
             connect = False
         i_g, q_g = findNearsetNode(q_samp, T_goal)
-        if not isRobotCollided(q_g, q_samp, map) and not isRobotSelfCollided(q_samp):
+        if not isRobotCollided(q_g, q_samp, obstacles):
             T_goal.append(q_samp)
             P_goal.append(i_g)
         else:
@@ -154,7 +123,7 @@ def rrt(map, start, goal):
     return np.array(path)
 
 if __name__ == '__main__':
-    map_struct = loadmap("../maps/map4.txt")
+    map_struct = loadmap("../maps/map2.txt")
     print(map_struct.obstacles)
     start = np.array([0,-1,0,-2,0,1.57,0])
     goal =  np.array([-1.2, 1.57 , 1.57, -2.07, -1.57, 1.57, 0.7])
