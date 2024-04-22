@@ -37,7 +37,7 @@ def detectCollisionOnce(linePt1, linePt2, box):
     boxPt2 = np.array([box[3],box[4], box[5]])
     boxSize = boxPt2 - boxPt1
     # Find slopes vector
-    lineSlope = linePt2 - linePt1
+    lineSlope = linePt2 - linePt1 # Nx3
     lineSlope = [0.001 if num == 0 else num for num in lineSlope]
 
     # %% Begin Collision Detection
@@ -159,5 +159,3 @@ if __name__=='__main__':
     plotBox(ax, box5)
     plotBox(ax, box6)
     plt.show()
-
-
