@@ -120,13 +120,13 @@ def rrt(map, start, goal):
         q_samp = getRandomConfiguration(lowerLim, upperLim)
         i_st, q_st = findNearsetNode(q_samp, T_start)
         connect = True
-        if not isRobotCollided(q_st, q_samp, map) or not isRobotSelfCollided(q_samp):
+        if not isRobotCollided(q_st, q_samp, map) and not isRobotSelfCollided(q_samp):
             T_start.append(q_samp)
             P_start.append(i_st)
         else:
             connect = False
         i_g, q_g = findNearsetNode(q_samp, T_goal)
-        if not isRobotCollided(q_g, q_samp, map) or not isRobotSelfCollided(q_samp):
+        if not isRobotCollided(q_g, q_samp, map) and not isRobotSelfCollided(q_samp):
             T_goal.append(q_samp)
             P_goal.append(i_g)
         else:
