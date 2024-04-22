@@ -92,7 +92,7 @@ class PotentialFieldPlanner:
 
         ## STUDENT CODE STARTS HERE
         eta = 2.0
-        rho_0 = 5.0
+        rho_0 = 0.5
         rep_f = np.zeros((3, 1))
         closest_dist, unitvec = PotentialFieldPlanner.dist_point2box(current.T, obstacle.flatten())
         closest_dist = np.linalg.norm(closest_dist)
@@ -266,12 +266,12 @@ class PotentialFieldPlanner:
         target_pos, T0e_t = PotentialFieldPlanner.fk.forward_expanded(target)
         current_pos, T0e_c = PotentialFieldPlanner.fk.forward_expanded(q)
         forces = PotentialFieldPlanner.compute_forces(target_pos[1:].T, map_struct.obstacles, current_pos[1:].T)
-        torques = PotentialFieldPlanner.compute_torques(forces, q)[0, :7]
-        for i in range(dq.shape[1]):
-            dq[0, i] = torques[i] / np.linalg.norm(torques[i])
+        torques = PotentialFieldPlanner.compute_torques(forces, q)
+
+        dq = torques/ np.linalg.norm(torques)
         ## END STUDENT CODE
 
-        return dq
+        return dq[0, :7]
 
     ###############################
     ### Potential Feild Solver  ###
@@ -307,6 +307,7 @@ class PotentialFieldPlanner:
             # Compute gradient
             dq = PotentialFieldPlanner.compute_gradient(q.flatten(), goal, map_struct)
             # TODO: this is how to change your joint angles
+            print(dq)
             assert not np.any(np.isnan(dq))
             # Termination Conditions
             print(PotentialFieldPlanner.q_distance(goal, q))
@@ -321,7 +322,7 @@ class PotentialFieldPlanner:
             # TODO: when detect a local minima, implement a random walk
             #if diff  <
             cnt+=1
-            last_q = q
+            #last_q = q
             ## END STUDENT CODE
 
         return q_path

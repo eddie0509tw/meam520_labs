@@ -98,13 +98,12 @@ class FK_Jac():
         # Your code ends here
         _ , T0e = self.forward_expanded(q)
         #R_all = T0e[1: , :-1, :-1]
-        print(T0e)
-        for i in range(1, 9):
+        for i in range(1, 7):
             R = T0e[i , :-1, :-1]
             axis_of_rot[i] = R @ np.array([0, 0, 1])
 
-        #axis_of_rot[7] = R @ np.array([0, 0, 1])
-        #axis_of_rot[8] = R @ np.array([0, 0, 1])
+        axis_of_rot[7] = R @ np.array([0, 0, 1])
+        axis_of_rot[8] = R @ np.array([0, 0, 1])
         return axis_of_rot.T
 
     def calcJacobian(self, q_in):
@@ -121,21 +120,15 @@ class FK_Jac():
         ## STUDENT CODE GOES HERE
         joint_positions, T0e = self.forward_expanded(q_in)
         axis_of_rot = self.get_axis_of_rotation(q_in)
-        print(axis_of_rot)
+        #print(axis_of_rot)
 
         o_end =joint_positions[-1]
-        for i in range(7):
+        for i in range(9):
             z_ = axis_of_rot[: ,i]
             J[:3, i]=np.cross(z_,(o_end-joint_positions[i]))
             J[3: , i] = z_
 
-
-        for i in range(8, 10):
-            z_ = axis_of_rot[: ,6]
-            J[:3, i-1]=np.cross(z_,(o_end-joint_positions[i]))
-            J[3: , i-1] = z_
-        #J[3: , :] = axis_of_rot
-        exit()
+        J[3: , :] = axis_of_rot
 
         return J
 
