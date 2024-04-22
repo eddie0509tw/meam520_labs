@@ -15,12 +15,12 @@ def getRandomConfiguration(lowerLim, upperLim):
     """
     return np.random.uniform(lowerLim, upperLim)
 
-
+'''
 def isRobotCollided(q_from, q_to, obstacles):
-    '''
-    obstacle - nx6 numpy array representing the obstacle box min and max positions
-    in the world frame
-    '''
+    #
+    #obstacle - nx6 numpy array representing the obstacle box min and max positions
+    #in the world frame
+    #
     fk = FK()
     j_from, _ = fk.forward(q_from) # joints 8x3
     j_to, _ = fk.forward(q_to) # joints 8x3
@@ -39,7 +39,43 @@ def isRobotCollided(q_from, q_to, obstacles):
         return True
 
     return False
+'''
+def isRobotCollided (q_from, q_to, map):
+    fk=FK()
+    linept_from,_= fk.forward(q_from)
+    linept_to,_= fk.forward(q_to)
+    for obstacle in map[0]:                     # Checking for all obstacles
+        tolerances = [-0.05, -0.05, -0.05, 0.05, 0.05, 0.05]                # inflating obstacles
+        box = [value + tolerance for value, tolerance in zip(obstacle, tolerances)]
 
+        # Checking for small distances from start to goal position along the way.
+        num_div=10
+        for i in range(num_div):
+            a = q_from + i * (q_to - q_from) / num_div
+            b = q_from + (i+1)*(q_to - q_from)/num_div
+            pt1,_=fk.forward(a)
+            pt2,_=fk.forward(b)
+            iscollide = np.array(detectCollision(pt1, pt2, box))
+            if np.any(iscollide):
+                return True
+
+        #Link collision check
+        iscollide = np.array(detectCollision(linept_to[0:6], linept_to[1:7], box))
+        if np.any(iscollide):
+            return True
+    return False
+
+def isRobotSelfCollided(q):                         # Checking distance bettween all the joints for self collision check
+    fk = FK()
+    link_positions,_=fk.forward(q)
+    collision_tolerance = 0.04
+    for i in range(7):
+        for j in range(i + 1, 7):
+            distance = np.linalg.norm(link_positions[i] - link_positions[j])
+            if distance < collision_tolerance:
+                return True
+
+    return False
 
 def findNearsetNode(q, tree):
     """
@@ -84,13 +120,13 @@ def rrt(map, start, goal):
         q_samp = getRandomConfiguration(lowerLim, upperLim)
         i_st, q_st = findNearsetNode(q_samp, T_start)
         connect = True
-        if not isRobotCollided(q_st, q_samp, obstacles):
+        if not isRobotCollided(q_st, q_samp, map) or not isRobotSelfCollided(q_samp):
             T_start.append(q_samp)
             P_start.append(i_st)
         else:
             connect = False
         i_g, q_g = findNearsetNode(q_samp, T_goal)
-        if not isRobotCollided(q_g, q_samp, obstacles):
+        if not isRobotCollided(q_g, q_samp, map) or not isRobotSelfCollided(q_samp):
             T_goal.append(q_samp)
             P_goal.append(i_g)
         else:
