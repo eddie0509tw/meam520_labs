@@ -91,8 +91,8 @@ class PotentialFieldPlanner:
         """
 
         ## STUDENT CODE STARTS HERE
-        eta = 2.0
-        rho_0 = 0.5
+        eta = 1.0
+        rho_0 = 0.15
         rep_f = np.zeros((3, 1))
         closest_dist, unitvec = PotentialFieldPlanner.dist_point2box(current.T, obstacle.flatten())
         closest_dist = np.linalg.norm(closest_dist)
@@ -297,7 +297,7 @@ class PotentialFieldPlanner:
         cnt = 0
         q = start
         q_path = np.vstack((q_path,q))
-        alpha = 1e-3
+        alpha = 3e-2
         last_q = np.zeros_like(q)
         while True:
 
