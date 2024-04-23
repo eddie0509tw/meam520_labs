@@ -61,15 +61,17 @@ class FK_Jac():
 
         self.theta = self.construct_theta(q) - self.init_angle
         for i, (a, alpha, d, theta) in enumerate(zip(self.a, self.alpha, self.d, self.theta)):
-            A = self.build_DH(a, alpha, d, theta)
-            T0e = T0e @ A
-            R = T0e[:-1, :-1]
             if i == 7:
+                R = T0e[:-1, :-1]
                 for vj_off in vj_offset:
                     jointPositions[i] = T0e[:-1, -1] +  R @ vj_off
                     T0e_[i] = T0e
                     T0e_[i, :-1, -1] = jointPositions[i]
                     i+=1
+            A = self.build_DH(a, alpha, d, theta)
+            T0e = T0e @ A
+            R = T0e[:-1, :-1]
+            if i == 9:
                 jointPositions[-1] = T0e[:-1, -1] +  R @ offset[-1]
                 T0e_[-1] = T0e
                 T0e_[-1, :-1, -1] = jointPositions[-1]
@@ -152,10 +154,10 @@ if __name__ == "__main__":
     fk = FK_Jac()
 
     # matches figure in the handout
-    q = np.array([pi/5,pi/6,pi/3,-pi/2,0,pi/3,pi/4])
+    q = np.array([0,0,0,0,0,0,0])
 
     joint_positions, T0e = fk.forward_expanded(q)
 
-    #print("Joint Positions:\n",joint_positions)
-    #print("End Effector Pose:\n",T0e)
-    print(np.round(fk.calcJacobian(q),3))
+    print("Joint Positions:\n",joint_positions)
+    print("End Effector Pose:\n",T0e)
+    print("Jacobian: \n", np.round(fk.calcJacobian(q),3))

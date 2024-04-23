@@ -2,9 +2,9 @@ import numpy as np
 from math import pi, acos
 from scipy.linalg import null_space
 from copy import deepcopy
-from lib.calculateFKJac import FK_Jac
-from lib.detectCollision import detectCollision
-from lib.loadmap import loadmap
+from calculateFKJac import FK_Jac
+from detectCollision import detectCollision
+from loadmap import loadmap
 
 
 class PotentialFieldPlanner:
@@ -16,7 +16,7 @@ class PotentialFieldPlanner:
     center = lower + (upper - lower) / 2 # compute middle of range of motion of each joint
     fk = FK_Jac()
 
-    def __init__(self, tol=1e-4, max_steps=5000, min_step_size=1e-5):
+    def __init__(self, tol=1e-3, max_steps=2000, min_step_size=1e-3):
         """
         Constructs a potential field planner with solver parameters.
 
@@ -91,8 +91,8 @@ class PotentialFieldPlanner:
         """
 
         ## STUDENT CODE STARTS HERE
-        eta = 1.0
-        rho_0 = 0.15
+        eta = 2.0
+        rho_0 = 3.0
         rep_f = np.zeros((3, 1))
         closest_dist, unitvec = PotentialFieldPlanner.dist_point2box(current.T, obstacle.flatten())
         closest_dist = np.linalg.norm(closest_dist)
@@ -208,15 +208,15 @@ class PotentialFieldPlanner:
         Jv = J[:3] #3x9
         for i in range(joint_torques.shape[1]):
             f = joint_forces[..., i].reshape(-1, 1) #3x1
-            print("f: ", f)
-            print("J: " , np.round(Jv, 2))
+            #print("f: ", f)
+            #print("J: " , np.round(Jv, 2))
             torque = Jv[..., :i+1].T @ f
-            print("torque: ", torque)
+            #print("torque: ", torque)
             joint_torques[0, :i+1] += torque.flatten()
         #joint_torques[:] = torque.flatten()
         ## END STUDENT CODE
-        print(joint_torques)
-        exit()
+        #print(joint_torques)
+
         return joint_torques
 
     @staticmethod
@@ -264,15 +264,17 @@ class PotentialFieldPlanner:
         ## STUDENT CODE STARTS HERE
 
         dq = np.zeros((1, 7))
+        joints_idx = [0, 1, 2, 3, 4, 5, 8]
+
         target_pos, T0e_t = PotentialFieldPlanner.fk.forward_expanded(target)
         current_pos, T0e_c = PotentialFieldPlanner.fk.forward_expanded(q)
         forces = PotentialFieldPlanner.compute_forces(target_pos[1:].T, map_struct.obstacles, current_pos[1:].T)
-        torques = PotentialFieldPlanner.compute_torques(forces, q)
-
+        torques = PotentialFieldPlanner.compute_torques(forces, q)[0, joints_idx]
         dq = torques/ np.linalg.norm(torques)
+        print("dq: ", dq)
         ## END STUDENT CODE
 
-        return dq[0, :7]
+        return dq
 
     def check_collision(self, q_new, q,  map_struct):
         obstacles = map_struct.obstacles
@@ -329,7 +331,7 @@ class PotentialFieldPlanner:
         cnt = 0
         q = start
         q_path = np.vstack((q_path,q))
-        alpha = 1e-3
+        alpha = 2e-2
         last_q = np.zeros_like(q)
         while True:
 
@@ -374,7 +376,7 @@ if __name__ == "__main__":
     planner = PotentialFieldPlanner()
 
     # inputs
-    map_struct = loadmap("/home/student/meam520_ws/src/meam520_labs/maps/emptyMap.txt")
+    map_struct = loadmap("/Users/eddie/meam520_labs/maps/map1.txt")
     start = np.array([0,-1,0,-2,0,1.57,0])
     goal =  np.array([-1.2, 1.57 , 1.57, -2.07, -1.57, 1.57, 0.7])
 
