@@ -16,7 +16,7 @@ class PotentialFieldPlanner:
     center = lower + (upper - lower) / 2 # compute middle of range of motion of each joint
     fk = FK_Jac()
 
-    def __init__(self, tol=1e-4, max_steps=500, min_step_size=1e-5):
+    def __init__(self, tol=1e-4, max_steps=5000, min_step_size=1e-5):
         """
         Constructs a potential field planner with solver parameters.
 
@@ -64,10 +64,10 @@ class PotentialFieldPlanner:
         att_f = np.zeros((3, 1))
         f = -(current - target)
         f_n = np.linalg.norm(f)
-        if f_n > 1.0:
+        if f_n > 0.0:
             att_f = f / (np.linalg.norm(f))
         else:
-            att_f = f
+            att_f = f * 0.1
         ## END STUDENT CODE
 
         return att_f * psi
@@ -206,16 +206,17 @@ class PotentialFieldPlanner:
         joint_torques = np.zeros((1, 9))
         J = PotentialFieldPlanner.fk.calcJacobian(q) # 6x9
         Jv = J[:3] #3x9
-        torque = np.zeros((9, 1))
         for i in range(joint_torques.shape[1]):
-            J_ = np.zeros_like(Jv)
-            J_[..., :i+1] = Jv[..., :i+1]
             f = joint_forces[..., i].reshape(-1, 1) #3x1
-            torque += J_.T @ f
-
-        joint_torques[:] = torque.flatten()
+            print("f: ", f)
+            print("J: " , np.round(Jv, 2))
+            torque = Jv[..., :i+1].T @ f
+            print("torque: ", torque)
+            joint_torques[0, :i+1] += torque.flatten()
+        #joint_torques[:] = torque.flatten()
         ## END STUDENT CODE
-
+        print(joint_torques)
+        exit()
         return joint_torques
 
     @staticmethod
@@ -266,12 +267,12 @@ class PotentialFieldPlanner:
         target_pos, T0e_t = PotentialFieldPlanner.fk.forward_expanded(target)
         current_pos, T0e_c = PotentialFieldPlanner.fk.forward_expanded(q)
         forces = PotentialFieldPlanner.compute_forces(target_pos[1:].T, map_struct.obstacles, current_pos[1:].T)
-        torques = PotentialFieldPlanner.compute_torques(forces, q)[0, :7]
+        torques = PotentialFieldPlanner.compute_torques(forces, q)
 
         dq = torques/ np.linalg.norm(torques)
         ## END STUDENT CODE
 
-        return dq
+        return dq[0, :7]
 
     def check_collision(self, q_new, q,  map_struct):
         obstacles = map_struct.obstacles
@@ -328,7 +329,7 @@ class PotentialFieldPlanner:
         cnt = 0
         q = start
         q_path = np.vstack((q_path,q))
-        alpha = 2e-2
+        alpha = 1e-3
         last_q = np.zeros_like(q)
         while True:
 
@@ -354,6 +355,8 @@ class PotentialFieldPlanner:
             q_path = np.vstack((q_path,q))
             # YOU MAY NEED TO DEAL WITH LOCAL MINIMA HERE
             # TODO: when detect a local minima, implement a random walk
+            if np.linalg.norm(dq) < self.min_step_size:
+                q_new = self.random_walk(q)
             cnt+=1
             #last_q = q
             ## END STUDENT CODE
@@ -371,7 +374,7 @@ if __name__ == "__main__":
     planner = PotentialFieldPlanner()
 
     # inputs
-    map_struct = loadmap("../maps/map1.txt")
+    map_struct = loadmap("/home/student/meam520_ws/src/meam520_labs/maps/emptyMap.txt")
     start = np.array([0,-1,0,-2,0,1.57,0])
     goal =  np.array([-1.2, 1.57 , 1.57, -2.07, -1.57, 1.57, 0.7])
 

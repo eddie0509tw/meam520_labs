@@ -128,15 +128,6 @@ if __name__ == '__main__':
     start = np.array([0,-1,0,-2,0,1.57,0])
     goal =  np.array([-1.2, 1.57 , 1.57, -2.07, -1.57, 1.57, 0.7])
     path = rrt(deepcopy(map_struct), deepcopy(start), deepcopy(goal))
-    # Assuming points is an nx3 NumPy array
-    points = np.array([[1, 2, 3], [4, 5, 6], [1, 2, 7], [3.33, 2, 4]])  # Example points
 
-    # Calculate the distance matrix
-    #distance_matrix = np.sqrt(((points[:, np.newaxis] - points)**2).sum(axis=2))
-    # Get the upper triangular part of the matrix, excluding the diagonal
-    #upper_triangle_distances = np.triu(distance_matrix, k=1)
-    #print(upper_triangle_distances)
-    # If you need to get these distances as a flat array:
-    #upper_triangle_flat = upper_triangle_distances[upper_triangle_distances != 0]
-    #print(upper_triangle_flat)
+
     print(path)

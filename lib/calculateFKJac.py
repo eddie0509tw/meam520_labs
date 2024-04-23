@@ -104,6 +104,7 @@ class FK_Jac():
 
         axis_of_rot[7] = R @ np.array([0, 0, 1])
         axis_of_rot[8] = R @ np.array([0, 0, 1])
+        #print(axis_of_rot)
         return axis_of_rot.T
 
     def calcJacobian(self, q_in):
@@ -125,10 +126,11 @@ class FK_Jac():
         o_end =joint_positions[-1]
         for i in range(9):
             z_ = axis_of_rot[: ,i]
+            #print("i: ", i, "val: ", z_, o_end-joint_positions[i], np.cross(z_,(o_end-joint_positions[i])))
             J[:3, i]=np.cross(z_,(o_end-joint_positions[i]))
             J[3: , i] = z_
 
-        J[3: , :] = axis_of_rot
+        #J[3: , :] = axis_of_rot
 
         return J
 
