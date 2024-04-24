@@ -61,9 +61,11 @@ class FK():
             A = self.build_DH(a, alpha, d, theta)
             T0e = T0e @ A
             R = T0e[:-1, :-1]
+            if i == 6:
+                T_ = T0e
             jointPositions[i] = T0e[:-1, -1] +  R @ offset[i]
 
-        return jointPositions, T0e
+        return jointPositions, T_
 
     # feel free to define additional helper methods to modularize your solution for lab 1
 

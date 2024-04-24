@@ -2,9 +2,9 @@ import numpy as np
 from math import pi, acos
 from scipy.linalg import null_space
 from copy import deepcopy
-from calculateFKJac import FK_Jac
-from detectCollision import detectCollision
-from loadmap import loadmap
+from lib.calculateFKJac import FK_Jac
+from lib.detectCollision import detectCollision
+from lib.loadmap import loadmap
 
 
 class PotentialFieldPlanner:
@@ -16,7 +16,7 @@ class PotentialFieldPlanner:
     center = lower + (upper - lower) / 2 # compute middle of range of motion of each joint
     fk = FK_Jac()
 
-    def __init__(self, tol=1e-3, max_steps=2000, min_step_size=1e-3):
+    def __init__(self, tol=1e-3, max_steps=1000, min_step_size=1e-4):
         """
         Constructs a potential field planner with solver parameters.
 
@@ -67,7 +67,7 @@ class PotentialFieldPlanner:
         if f_n > 0.0:
             att_f = f / (np.linalg.norm(f))
         else:
-            att_f = f * 0.1
+            att_f = f
         ## END STUDENT CODE
 
         return att_f * psi
@@ -91,8 +91,8 @@ class PotentialFieldPlanner:
         """
 
         ## STUDENT CODE STARTS HERE
-        eta = 2.0
-        rho_0 = 3.0
+        eta = 1.0
+        rho_0 = 0.06
         rep_f = np.zeros((3, 1))
         closest_dist, unitvec = PotentialFieldPlanner.dist_point2box(current.T, obstacle.flatten())
         closest_dist = np.linalg.norm(closest_dist)
@@ -264,17 +264,16 @@ class PotentialFieldPlanner:
         ## STUDENT CODE STARTS HERE
 
         dq = np.zeros((1, 7))
-        joints_idx = [0, 1, 2, 3, 4, 5, 8]
+        joints_idx = [0, 1, 2, 3, 4, 5, 7]
 
         target_pos, T0e_t = PotentialFieldPlanner.fk.forward_expanded(target)
         current_pos, T0e_c = PotentialFieldPlanner.fk.forward_expanded(q)
         forces = PotentialFieldPlanner.compute_forces(target_pos[1:].T, map_struct.obstacles, current_pos[1:].T)
-        torques = PotentialFieldPlanner.compute_torques(forces, q)[0, joints_idx]
+        torques = PotentialFieldPlanner.compute_torques(forces, q)
         dq = torques/ np.linalg.norm(torques)
-        print("dq: ", dq)
         ## END STUDENT CODE
-
-        return dq
+        print("dq: ", dq)
+        return dq[0, joints_idx]
 
     def check_collision(self, q_new, q,  map_struct):
         obstacles = map_struct.obstacles
@@ -287,8 +286,7 @@ class PotentialFieldPlanner:
 
         return False
 
-
-    def random_walk(self, q, step_size=0.05):
+    def random_walk(self, q, step_size=0.01):
         """
         Perform a random walk to escape local minima.
 
@@ -298,9 +296,10 @@ class PotentialFieldPlanner:
         """
         q_new = q.copy()
 
-        perturbation = np.random.uniform(-step_size, step_size, q.shape)
+        perturbation = np.random.randn(q.shape[0])
+        perturbation /= np.linalg.norm(perturbation)
         # Apply the perturbation
-        q_new += perturbation
+        q_new += perturbation * step_size
         # Ensure the new joint angles are within the joint limits
         q_new = np.clip(q_new, self.lower, self.upper)
         # Check if the new configuration is in collision
@@ -331,8 +330,8 @@ class PotentialFieldPlanner:
         cnt = 0
         q = start
         q_path = np.vstack((q_path,q))
-        alpha = 2e-2
-        last_q = np.zeros_like(q)
+        alpha = 0.01
+        last_err = np.zeros_like(q)
         while True:
 
             ## STUDENT CODE STARTS HERE
@@ -345,7 +344,9 @@ class PotentialFieldPlanner:
             assert not np.any(np.isnan(dq))
             # Termination Conditions
             print(PotentialFieldPlanner.q_distance(goal, q))
-            if PotentialFieldPlanner.q_distance(goal, q) < self.tol or cnt > self.max_steps: # TODO: check termination conditions
+            err = PotentialFieldPlanner.q_distance(goal, q)
+
+            if err < self.tol or cnt > self.max_steps: # TODO: check termination conditions
                 break # exit the while loop if conditions are met!
             q_new = q + alpha*dq
             # YOU NEED TO CHECK FOR COLLISIONS WITH OBSTACLES
@@ -356,9 +357,12 @@ class PotentialFieldPlanner:
             q = q_new
             q_path = np.vstack((q_path,q))
             # YOU MAY NEED TO DEAL WITH LOCAL MINIMA HERE
-            # TODO: when detect a local minima, implement a random walk
-            if np.linalg.norm(dq) < self.min_step_size:
+            # TODO: when detect a local minima, imple10ment a random walk
+            diff = np.linalg.norm(err - last_err)
+            if diff < self.min_step_size:
+                print("Local min detect")
                 q_new = self.random_walk(q)
+            last_err = err
             cnt+=1
             #last_q = q
             ## END STUDENT CODE
@@ -376,7 +380,7 @@ if __name__ == "__main__":
     planner = PotentialFieldPlanner()
 
     # inputs
-    map_struct = loadmap("/Users/eddie/meam520_labs/maps/map1.txt")
+    map_struct = loadmap("../maps/emptyMap.txt")
     start = np.array([0,-1,0,-2,0,1.57,0])
     goal =  np.array([-1.2, 1.57 , 1.57, -2.07, -1.57, 1.57, 0.7])
 

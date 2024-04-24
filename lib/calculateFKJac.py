@@ -56,8 +56,8 @@ class FK_Jac():
                              [0.0, 0.0, 0.051],
                              [0.0, 0.0, 0.0]])
 
-        vj_offset = np.array([[0 ,0.1,-0.105],
-                              [0 ,-0.1,-0.105]])
+        vj_offset = np.array([[0 ,0.05,0.105],
+                              [0 ,-0.05,0.105]])
 
         self.theta = self.construct_theta(q) - self.init_angle
         for i, (a, alpha, d, theta) in enumerate(zip(self.a, self.alpha, self.d, self.theta)):
@@ -100,12 +100,13 @@ class FK_Jac():
         # Your code ends here
         _ , T0e = self.forward_expanded(q)
         #R_all = T0e[1: , :-1, :-1]
-        for i in range(1, 7):
+        for i in range(1, 9):
             R = T0e[i , :-1, :-1]
             axis_of_rot[i] = R @ np.array([0, 0, 1])
+            print(f"R_{i}: \n", R)
 
-        axis_of_rot[7] = R @ np.array([0, 0, 1])
-        axis_of_rot[8] = R @ np.array([0, 0, 1])
+        #axis_of_rot[7] = R @ np.array([0, 0, 1])
+        #axis_of_rot[8] = R @ np.array([0, 0, 1])
         #print(axis_of_rot)
         return axis_of_rot.T
 
