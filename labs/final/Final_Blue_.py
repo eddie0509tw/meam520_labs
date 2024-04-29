@@ -15,7 +15,7 @@ from scipy.spatial.transform import Rotation
 
 # for timing that is consistent with simulation or real time as appropriate
 from core.utils import time_in_seconds
-from translib import trans, roll, pitch, yaw, transform,z_swap
+from coordination_trans import trans, roll, pitch, yaw, transform,z_swap
 from Ik_new import franka_IK_EE
 
 
