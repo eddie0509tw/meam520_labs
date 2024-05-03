@@ -224,7 +224,7 @@ class IK:
     ## Inverse Kinematics Solver ##
     ###############################
 
-    def inverse(self, target, seed, method, alpha):
+    def inverse(self, target, seed, method='J_pseudo', alpha=.5):
         """
         Uses gradient descent to solve the full inverse kinematics of the Panda robot.
 

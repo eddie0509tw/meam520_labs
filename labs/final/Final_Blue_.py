@@ -94,7 +94,7 @@ def static_pick_place(target_placing, block_pose_world):
         print(pos)
 
         if pos < 0.01:
-            target= transform( np.array([0.502, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+            target= transform( np.array([0.502, 0.169, 0.48364056]), np.array([ 0,pi,pi]) )
             tar = franka_IK_EE(target, q7, q_actual_array)
             q=tar[2]
             print(q)

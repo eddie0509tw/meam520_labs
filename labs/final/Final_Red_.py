@@ -29,31 +29,28 @@ def complementary_filter(data, reference_data, alpha):
 def block_Detection():
 
     alpha=0.9
-
+    block_pose1=[]
+    for (name, pose) in detector.get_detections():
+        block_pose1.append(pose)
+    block_pose1=np.array(block_pose1)
     for i in range(5):
-        block_pose1=[]
+        #print("block1: \n", block_pose1)
+        noise = np.random.normal(0, 0.06, block_pose1.shape)
+        block_pose_temp=[]
         for (name, pose) in detector.get_detections():
-            block_pose1.append(pose)
-            print(name,'\n',pose)
-        block_pose1=np.array(block_pose1)
-        # print(block_pose1.shape)
-
-        block_pose2=[]
-        for (name, pose) in detector.get_detections():
-            block_pose2.append(pose)
+            block_pose_temp.append(pose)
             # print(name,'\n',pose)
-        block_pose2=np.array(block_pose2)
-        # print(block_pose2.shape)
+        block_pose2=np.array(block_pose_temp) + noise
+        #print("block2: \n", block_pose2)
 
         block_pose_comp=complementary_filter(block_pose1,block_pose2,alpha)
-        block_pose1=block_pose2
-        block_pose2=block_pose_comp
-
+        block_pose1=block_pose_comp
+        #print("block_pose_comp: \n", block_pose_comp)
 
     block_pose_world=[]
     for i in range(block_pose_comp.shape[0]):
         block_pose_world.append(T_CW@block_pose_comp[i])
-
+    #print(block_pose_world)
     return block_pose_world
 
 def static_pick_place(target_placing, block_pose_world):
@@ -106,7 +103,7 @@ def static_pick_place(target_placing, block_pose_world):
         print(pos)
 
         if pos < 0.01:
-            target= transform( np.array([0.502, -0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+            target= transform( np.array([0.502, -0.169, 0.48364056]), np.array([ 0,pi,pi]) )
             tar = franka_IK_EE(target, q7, q_actual_array)
             q=tar[2]
             print(q)
@@ -272,12 +269,12 @@ if __name__ == "__main__":
     T_CW= T_EW@T_CE
 
     # rospy.sleep(2)
-    block_pose_world = block_Detection()
+    #block_pose_world = block_Detection()
     target_placing = np.array([0.57, 0.169, 0.27])
     #target_placing = np.array([0.5, -0.1, 0.1])
 
     # Loop through each block pose and attempt to pick and place
-    print(len(block_pose_world))
+    #print(len(block_pose_world))
     max_iter = 20
     i = 0
     while i < max_iter:
