@@ -228,7 +228,7 @@ if __name__ == "__main__":
     input("\nWaiting for start... Press ENTER to begin!\n") # get set!
     print("Go!\n") # go!
 
-    arm.set_arm_speed(0.3)
+    arm.set_arm_speed(0.1)
 
     q7 = np.pi/4
     q_actual_array = [ 0 ]
