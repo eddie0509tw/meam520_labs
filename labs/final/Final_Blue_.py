@@ -16,45 +16,45 @@ from scipy.spatial.transform import Rotation
 # for timing that is consistent with simulation or real time as appropriate
 from core.utils import time_in_seconds
 from coordination_trans import trans, roll, pitch, yaw, transform,z_swap
-from Ik_new import franka_IK_EE
+from IK_new import franka_IK_EE
 
 
 ik = IK()
 fk=FK()
 
+def offset(H, dist_x=-0.0, dist_y=-0.05):
+	H[0,3] += dist_x
+	H[1,3] += dist_y
+	return H
 
 def complementary_filter(data, reference_data, alpha):
     return alpha * data + (1 - alpha) * reference_data
-
+    
 def block_Detection():
 
-    alpha=0.85
-
+    alpha=0.9
+    block_pose1=[]
+    for (name, pose) in detector.get_detections():
+        block_pose1.append(pose)
+    block_pose1=np.array(block_pose1)
     for i in range(5):
-        block_pose1=[]
+        #print("block1: \n", block_pose1)
+        #noise = np.random.normal(0, 0.06, block_pose1.shape)
+        block_pose_temp=[]
         for (name, pose) in detector.get_detections():
-            block_pose1.append(pose)
-            print(name,'\n',pose)
-        block_pose1=np.array(block_pose1)
-        # print(block_pose1.shape)
-
-        block_pose2=[]
-        for (name, pose) in detector.get_detections():
-            block_pose2.append(pose)
+            block_pose_temp.append(pose)
             # print(name,'\n',pose)
-        block_pose2=np.array(block_pose2)
-        # print(block_pose2.shape)
+        block_pose2=np.array(block_pose_temp)
+        #print("block2: \n", block_pose2)
 
         block_pose_comp=complementary_filter(block_pose1,block_pose2,alpha)
-        block_pose1=block_pose2
-        block_pose2=block_pose_comp
-
+        block_pose1=block_pose_comp
+        #print("block_pose_comp: \n", block_pose_comp)
 
     block_pose_world=[]
     for i in range(block_pose_comp.shape[0]):
-
         block_pose_world.append(T_CW@block_pose_comp[i])
-
+    #print(block_pose_world)
     return block_pose_world
 
 def static_pick_place(target_placing, block_pose_world):
@@ -107,7 +107,6 @@ def static_pick_place(target_placing, block_pose_world):
         tar = franka_IK_EE(targets_p, q7, q_actual_array)
         q=tar[-1]
         arm.safe_move_to_position(q)
-
 
         targets_p = transform(np.array([target_placing[0], target_placing[1], target_placing[2]-0.03]), np.array([0, pi, pi]))
         tar = franka_IK_EE(targets_p, q7, q_actual_array)
@@ -189,15 +188,8 @@ def dynamic_place(target_placing):
     arm.open_gripper()
 
     targets_pp = transform(np.array([target_placing[0]+0.05, target_placing[1], target_placing[2]+0.1]), np.array([0, pi, pi]))
-    tar = franka_IK_EE(targets_pp, q7, q_actual_array)
-    q=tar[-1]
-    q[5]-=2*pi/15
-    arm.safe_move_to_position(q)
-
-    # target= transform( np.array([0.522, -0.169, 0.58364056]), np.array([ 0,pi,pi]) )
-
-    # print(target)
-    # tar = franka_IK_EE(target, q7, q_actual_array)
+    tar = static_pick_place(target_placing, [block_pose])
+    franka_IK_EE(target, q7, q_actual_array)
     # q=tar[2]
     # arm.safe_move_to_position(q)
     # arm.open_gripper()
@@ -214,8 +206,8 @@ if __name__ == "__main__":
     arm = ArmController()
     detector = ObjectDetector()
 
-    start_position = np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
-    arm.safe_move_to_position(start_position) # on your mark!
+    #start_position = np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
+    #arm.safe_move_to_position(start_position) # on your mark!
 
 
 
@@ -232,159 +224,301 @@ if __name__ == "__main__":
 
     q7 = np.pi/4
     q_actual_array = [ 0 ]
-    target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+    target= transform( np.array([0.522, 0.169, 0.45364056]), np.array([ 0,pi,pi]) )
     print(target)
     tar = franka_IK_EE(target, q7, q_actual_array)
-    q=tar[2]
-    print(q)
-    arm.safe_move_to_position(q)
+    q_set=tar[2]
+    print(q_set)
+    arm.safe_move_to_position(q_set)
 
     H_ee_camera = detector.get_H_ee_camera()
+    #print(H_ee_camera )
+    H_ee_camera = offset(H_ee_camera )
+    #print(H_ee_camera )
+    #exit()
     T_CE = H_ee_camera # T of camera in end_effector
-    _,T_EW = fk.forward(q)
+    _,T_EW = fk.forward(q_set)
     T_CW= T_EW@T_CE
 
     # rospy.sleep(2)
 
-    block_pose_world = block_Detection()
-    print(block_pose_world)
+    #block_pose_world = block_Detection()
+    #print(block_pose_world)
     target_placing = np.array([0.57, -0.169, 0.27])
     # target_placing = np.array([0.5, -0.1, 0.1])
-
-    # Loop through each block pose and attempt to pick and place
-    for block_pose in block_pose_world:
+    max_iter = 20
+    i = 0
+    while i < max_iter:
+        #arm.safe_set_joint_positions_velocities(q_set, np.ones_like((7)) * 0.1)
+        arm.safe_move_to_position(q_set)
+        #exit()
+        b = block_Detection()
+        if len(b) == 0:
+            break
+        block_pose = b[0]
+        print("currnt block: \n", block_pose)
         static_pick_place(target_placing, [block_pose])
+        i+=1
+    # Loop through each block pose and attempt to pick and place
+    #for block_pose in block_pose_world:
+    #    static_pick_place(target_placing, [block_pose])
         #target_placing[2] += 0.05  # Increment the z-coordinate for placing next block
+    # arm.open_gripper()
 
-    # # arm.open_gripper()
+#     target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     print(target)
+#     tar = franka_IK_EE(target, q7, q_actual_array)
+#     q=tar[2]
+#     print(q)
+#     arm.safe_move_to_position(q)
 
-    # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
-    # print(target)
-    # tar = franka_IK_EE(target, q7, q_actual_array)
-    # q=tar[2]
-    # print(q)
-    # arm.safe_move_to_position(q)
+#     H_ee_camera = detector.get_H_ee_camera()
+#     T_CE = H_ee_camera # T of camera in end_effector
+#     _,T_EW = fk.forward(q)
+#     T_CW= T_EW@T_CE
 
-    # H_ee_camera = detector.get_H_ee_camera()
-    # T_CE = H_ee_camera # T of camera in end_effector
-    # _,T_EW = fk.forward(q)
-    # T_CW= T_EW@T_CE
+        
 
+#     rospy.sleep(2)
 
+#     block_pose_world=block_Detection()
 
-    # rospy.sleep(2)
-
-    # block_pose_world=block_Detection()
-
-    # # arm.set_arm_speed(0.3)
-
-
-    # target_placing=np.array([0.57, -0.169, 0.27])
-
-    # dynamic_pick()
+#     # arm.set_arm_speed(0.3)
 
 
-    # static_pick_place(target_placing, block_pose_world[:1])
+#     target_placing=np.array([0.57, -0.169, 0.27])
 
-    # dynamic_pick()
-
-    # # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
-    # # print(target)
-    # # tar = franka_IK_EE(target, q7, q_actual_array)
-    # # q=tar[2]
-    # # print(q)
-    # # arm.safe_move_to_position(q)
-
-    # target= transform( np.array([0.4, -0.7, 0.285]), np.array([ 0,-pi/2,pi]) )
-    # seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
-    # q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
-    # #print(q)
-    # q[3]=q[3]+pi/3
-    # q[5]-=pi/3 -pi/10
-    # q[4]-=pi/7
-    # q[0]=q[0]-pi/12
-    # q[6]+=pi/18
-    # print(q)
-    # arm.safe_move_to_position(q)
-
-    # q[0]=q[0]+pi/9
-    # q[5]-=pi/12
-    # q[6]-=pi/20
-    # arm.safe_move_to_position(q)
-
-    # rospy.sleep(7)
+#     dynamic_pick()
 
 
-    # # arm.exec_gripper_cmd(0.0475,60)
-    # pos=np.linalg.norm(arm.get_gripper_state()["position"])
-    # print(pos)
+#     #static_pick_place(target_placing, block_pose_world[:1])
 
-    # q[5]+=pi/3
-    # q[0]+=pi/5
-    # q[6]+=pi/20
-    # q[1]-=pi/55
+#     dynamic_pick()
 
-    # arm.safe_move_to_position(q)
+#     # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     # print(target)
+#     # tar = franka_IK_EE(target, q7, q_actual_array)
+#     # q=tar[2]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
 
-    # static_pick_place(target_placing, block_pose_world[1:])
+#     target= transform( np.array([0.4, -0.7, 0.285]), np.array([ 0,-pi/2,pi]) )
+#     seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
+#     q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
+#     #print(q)
+#     q[3]=q[3]+pi/3
+#     q[5]-=pi/3 -pi/10
+#     q[4]-=pi/7
+#     q[0]=q[0]-pi/12
+#     q[6]+=pi/18
+#     print(q)
+#     arm.safe_move_to_position(q)
 
-    # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
-    # print(target)
-    # tar = franka_IK_EE(target, q7, q_actual_array)
-    # q=tar[2]
-    # print(q)
-    # arm.safe_move_to_position(q)
+#     q[0]=q[0]+pi/9
+#     q[5]-=pi/12
+#     q[6]-=pi/20
+#     arm.safe_move_to_position(q)
 
-    # rospy.sleep(2)
-
-    # block_pose_world=block_Detection()
-    # target_placing[2]=target_placing[2]+0.05
-    # static_pick_place(target_placing, block_pose_world)
-
-
-    # # q7 = np.pi/4
-    # # q_actual_array = [ 0 ]
-
-    # # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
-    # # print(target)
-    # # tar = franka_IK_EE(target, q7, q_actual_array)
-    # # q=tar[2]
-    # # print(q)
-    # # arm.safe_move_to_position(q)
-    # # arm.open_gripper()
-
-    # target= transform( np.array([0.4, -0.7, 0.29]), np.array([ 0,-pi/2,pi]) )
-    # seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
-    # q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
-    # #print(q)
-    # q[3]=q[3]+pi/3
-    # q[5]-=pi/3 -pi/10
-    # q[4]-=pi/7
-    # q[0]=q[0]-pi/12
-    # q[6]+=pi/18
-    # print(q)
-    # arm.safe_move_to_position(q)
-
-    # q[0]=q[0]+pi/9
-    # q[5]-=pi/12
-    # q[6]-=pi/20
-    # arm.safe_move_to_position(q)
+#     rospy.sleep(7)
 
 
+#     # arm.exec_gripper_cmd(0.0475,60)
+#     pos=np.linalg.norm(arm.get_gripper_state()["position"])
+#     print(pos)
+
+#     q[5]+=pi/3
+#     q[0]+=pi/5
+#     q[6]+=pi/20
+#     q[1]-=pi/55
+
+#     arm.safe_move_to_position(q)
+
+#     #static_pick_place(target_placing, block_pose_world[1:])
+#     # arm.open_gripper()
+
+#     target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     print(target)
+#     tar = franka_IK_EE(target, q7, q_actual_array)
+#     q=tar[2]
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     H_ee_camera = detector.get_H_ee_camera()
+#     T_CE = H_ee_camera # T of camera in end_effector
+#     _,T_EW = fk.forward(q)
+#     T_CW= T_EW@T_CE
+
+        
+
+   
+#     # q7 = np.pi/4
+#     # q_actual_array = [ 0 ]
+
+#     # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     # print(target)
+#     # tar = franka_IK_EE(target, q7, q_actual_array)
+#     # q=tar[2]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
+#     # arm.open_gripper()
+
+#     target= transform( np.array([0.4, -0.7, 0.29]), np.array([ 0,-pi/2,pi]) )
+#     seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
+#     q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
+#     #print(q)
+#     q[3]=q[3]+pi/3
+#     q[5]-=pi/3 -pi/10
+#     q[4]-=pi/7
+#     q[0]=q[0]-pi/12
+#     q[6]+=pi/18
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     q[0]=q[0]+pi/9
+#     q[5]-=pi/12
+#     q[6]-=pi/20
+#     arm.safe_move_to_position(q)
 
 
 
-    # # for side view
 
-    # # q7=0.84168682
 
-    # # targets_p = transform(np.array([target_placing[0], target_placing[1], target_placing[2]+0.3]), np.array([0, -pi/2, pi]))
-    # # tar = franka_IK_EE(targets_p, q7, q_actual_array)
-    # # q=tar[-1]
-    # # print(q)
-    # # arm.safe_move_to_position(q)
-    # # arm.open_gripper()
+#     # for side view
 
-    # # Move around...
+#     # q7=0.84168682
 
-    # # END STUDENT CODE
+#     # targets_p = transform(np.array([target_placing[0], target_placing[1], target_placing[2]+0.3]), np.array([0, -pi/2, pi]))
+#     # tar = franka_IK_EE(targets_p, q7, q_actual_array)
+#     # q=tar[-1]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
+#     # arm.open_gripper()
+#     target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     print(target)
+#     tar = franka_IK_EE(target, q7, q_actual_array)
+#     q=tar[2]
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     rospy.sleep(2)
+
+#     block_pose_world=block_Detection()
+#     target_placing[2]=target_placing[2]+0.05
+#     #static_pick_place(target_placing, block_pose_world)
+
+
+#     # q7 = np.pi/4
+#     # q_actual_array = [ 0 ]
+
+#     # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     # print(target)
+#     # tar = franka_IK_EE(target, q7, q_actual_array)
+#     # q=tar[2]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
+#     # arm.open_gripper()
+
+#     target= transform( np.array([0.4, -0.7, 0.29]), np.array([ 0,-pi/2,pi]) )
+#     seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
+#     q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
+#     #print(q)
+#     q[3]=q[3]+pi/3
+#     q[5]-=pi/3 -pi/10
+#     q[4]-=pi/7
+#     q[0]=q[0]-pi/12
+#     q[6]+=pi/18
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     q[0]=q[0]+pi/9
+#     q[5]-=pi/12
+#     q[6]-=pi/20
+#     arm.safe_move_to_position(q rospy.sleep(2)
+
+#     block_pose_world=block_Detection()
+
+#     # arm.set_arm_speed(0.3)
+
+
+#     target_placing=np.array([0.57, -0.169, 0.27])
+
+#     dynamic_pick()
+
+
+#     #static_pick_place(target_placing, block_pose_world[:1])
+
+#     dynamic_pick()
+
+#     # target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     # print(target)
+#     # tar = franka_IK_EE(target, q7, q_actual_array)
+#     # q=tar[2]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
+
+#     target= transform( np.array([0.4, -0.7, 0.285]), np.array([ 0,-pi/2,pi]) )
+#     seed= np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
+#     q, rollout, success, message = ik.inverse(target, seed, method='J_pseudo', alpha=.5)
+#     #print(q)
+#     q[3]=q[3]+pi/3
+#     q[5]-=pi/3 -pi/10
+#     q[4]-=pi/7
+#     q[0]=q[0]-pi/12
+#     q[6]+=pi/18
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     q[0]=q[0]+pi/9
+#     q[5]-=pi/12
+#     q[6]-=pi/20
+#     arm.safe_move_to_position(q)
+
+#     rospy.sleep(7)
+
+
+#     # arm.exec_gripper_cmd(0.0475,60)
+#     pos=np.linalg.norm(arm.get_gripper_state()["position"])
+#     print(pos)
+
+#     q[5]+=pi/3
+#     q[0]+=pi/5
+#     q[6]+=pi/20
+#     q[1]-=pi/55
+
+#     arm.safe_move_to_position(q)
+
+#     #(target_placing, block_pose_world[1:])
+
+#     target= transform( np.array([0.522, 0.169, 0.58364056]), np.array([ 0,pi,pi]) )
+#     print(target)
+#     tar = franka_IK_EE(target, q7, q_actual_array)
+#     q=tar[2]
+#     print(q)
+#     arm.safe_move_to_position(q)
+
+#     rospy.sleep(2)
+
+#     block_pose_world=block_Detection()
+#     target_placing[2]=target_placing[2]+0.05
+#     #static_pick_place(target_placing, block_pose_world)
+
+# )
+
+
+
+
+
+#     # for side view
+
+#     # q7=0.84168682
+
+#     # targets_p = transform(np.array([target_placing[0], target_placing[1], target_placing[2]+0.3]), np.array([0, -pi/2, pi]))
+#     # tar = franka_IK_EE(targets_p, q7, q_actual_array)
+#     # q=tar[-1]
+#     # print(q)
+#     # arm.safe_move_to_position(q)
+#     # arm.open_gripper()
+
+#     # # Move around...
+
+#     # # END STUDENT CODE
